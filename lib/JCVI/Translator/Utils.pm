@@ -54,7 +54,7 @@ our $DEFAULT_SANITIZED = 0;
 =cut
 
 sub _new {
-    my $self  = shift->SUPER::_new();
+    my $self = shift->SUPER::_new();
 
     $self->_regexes( [] );
     foreach my $rc ( 0 .. 1 ) {
@@ -133,6 +133,49 @@ sub regex {
 
     $self->_regexes->[$rc]->{residue} = $regex;
     return $regex;
+}
+
+=head2 find
+
+    my $locations = $translator->find( $seq_ref, $residue );
+    my $locations = $translator->find( $seq_ref, $residue, \%params );
+
+Find the indexes of a given residue in a sequence. Valid options for the params
+hash are:
+
+    strand:     1 or -1; default = 1
+
+=cut
+
+sub find {
+    my $self = shift;
+
+    my ( $seq_ref, $residue, @p );
+
+    ( $seq_ref, $residue, $p[0] ) = validate_pos(
+        @_, { type => Params::Validate::SCALARREF },
+        1, { default => {}, type => Params::Validate::HASHREF }
+    );
+
+    my %p = validate(
+        @p,
+        {
+            strand => {
+                default => 1,
+                regex   => qr/^[+-]?1$/,
+                type    => Params::Validate::SCALAR
+            }
+        }
+    );
+
+    my $regex = $self->regex( $residue, $p{strand} );
+
+    my @positions;
+    while ( $$seq_ref =~ m/(?=$regex)/ig ) {
+        push @positions, pos($$seq_ref);
+    }
+    
+    return \@positions;
 }
 
 =head2 getORF

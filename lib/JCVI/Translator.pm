@@ -67,7 +67,7 @@ use strict;
 use warnings;
 
 use version;
-our $VERSION = qv('0.4.1');
+our $VERSION = qv('0.4.2');
 
 use base qw(Class::Accessor::Fast);
 __PACKAGE__->mk_accessors(qw(id names _table _starts _reverse));
@@ -391,7 +391,6 @@ sub add_translation {
         { regex => qr/^${nuc_match}{3}$/ },
         { regex => qr/^$aa_match$/ },
         { type  => Params::Validate::HASHREF, default => {} }
-
     );
 
     my %p = validate(

@@ -1,5 +1,8 @@
 Revision history for JCVI-Translator
 
+0.4.2   Apr 1 2009
+ - Added find method into utils
+
 0.4.1   Mar 31 2009
  - Minor fixes in documentation
  - Use "my $self = shift->SUPER::new(@_)" in constructors
