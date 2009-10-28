@@ -47,9 +47,18 @@ use Params::Validate;
 use JCVI::DNATools qw( cleanDNA );
 use JCVI::AATools qw( $aa_match );
 
+# Default values
 our $DEFAULT_STRAND        = 1;
 our $DEFAULT_SEARCH_STRAND = 0;
 our $DEFAULT_SANITIZED     = 0;
+
+# Precompiled regular expressions for SPOT rule and to save time
+our $BOOLEAN_REGEX       = qr/^[01]$/;
+our $INTEGER_REGEX       = qr/^\d+$/;
+our $STRAND_REGEX        = qr/^[+-]?1$/;
+our $SEARCH_STRAND_REGEX = qr/^[+-]?[01]$/;
+our $RESIDUE_REGEX       = qr/^(?:$aa_match|start|stop|lower|upper)$/;
+our $STRICT_REGEX        = qr/^[012]$/;
 
 sub _new {
     my $self = shift->SUPER::_new(@_);
@@ -66,9 +75,18 @@ sub _new {
     my $codon_array = $translator->codons( $residue);
     my $codon_array = $translator->codons( $residue, \%params );
 
-Returns a list of codons for a particular residue or start codon. For start
-codons, input "start" for the residue. Valid options for the params
-hash are:
+Returns a list of codons for a particular residue or start codon. In addition
+to the one-letter codes for amino acids, the following are valid inputs for the
+residue:
+
+    start:  Start codons
+    stop:   Stop codons (you may also use "*" which is the 1 letter code)
+    lower:  Start or stop codons, depending up on strand
+    upper:  Start or stop codons, depending up on strand
+
+"lower" and "upper" match the respective ends of a CDS for a given strand (i.e.
+on the positive strand, lower matches the start, and upper matches them stop).
+Valid options for the params hash are:
 
     strand:     1 or -1; default = 1
 
@@ -85,7 +103,7 @@ sub codons {
         @_,
         {
             type  => Params::Validate::SCALAR,
-            regex => qr/^(?:$aa_match|start|lower|upper)$/
+            regex => $RESIDUE_REGEX
         },
         { type => Params::Validate::HASHREF, default => {} }
     );
@@ -93,27 +111,30 @@ sub codons {
     my %p = validate(
         @p,
         {
+
             # Make sure strand is 1 or -1 and set default
             strand => {
                 default => $DEFAULT_STRAND,
-                regex   => qr/^[+-]?1$/,
+                regex   => $STRAND_REGEX,
                 type    => Params::Validate::SCALAR
             }
-
         }
     );
 
     # Set the reverse comlement variable
     my $rc = $p{strand} == 1 ? 0 : 1;
 
-    # Lower bound is "*" on the - strand, "start" on the + strand
-    if ( $residue eq 'lower' ) { $residue = $rc ? '*' : 'start' }
-
-    # Upper bound is "start" on the - strand, or "*" on the + strand
-    elsif ( $residue eq 'upper' ) { $residue = $rc ? 'start' : '*' }
+    # If residue is 'stop' change it to '*'
+    if ( $residue eq 'stop' ) { $residue = '*' }
 
     # Do nothing if residue is "start" (don't want to capitalize)
     elsif ( $residue eq 'start' ) { }
+
+    # Lower bound is "*" on the - strand, "start" on the + strand
+    elsif ( $residue eq 'lower' ) { $residue = $rc ? '*' : 'start' }
+
+    # Upper bound is "start" on the - strand, or "*" on the + strand
+    elsif ( $residue eq 'upper' ) { $residue = $rc ? 'start' : '*' }
 
     # Capitalize all other residues
     else { $residue = uc $residue }
@@ -133,18 +154,19 @@ sub codons {
     my $regex = $translator->regex( $residue, \%params );
 
 Returns a regular expression matching codons for a particular amino acid
-residue. In addition, three special values are allowed:
+residue. In addition to the one-letter codes for amino acids, the following are
+valid inputs for the residue:
 
     start:  Start codons
+    stop:   Stop codons (you may also use "*" which is the 1 letter code)
     lower:  Start or stop codons, depending up on strand
-    lower:  Start or stop codons, depending up on strand
+    upper:  Start or stop codons, depending up on strand
 
-lower and upper match the respective ends of a CDS for a given strand (i.e. on
-the positive strand, lower matches the start, and upper matches the stop). The
-stop codon is stored as "*" by the translator. Valid options for the params
-hash are:
+"lower" and "upper" match the respective ends of a CDS for a given strand (i.e.
+on the positive strand, lower matches the start, and upper matches the stop).
+Valid options for the params hash are:
 
-    strand:     1 or -1; default = 1
+    strand: 1 or -1; default = 1
 
 =cut
 
@@ -156,16 +178,14 @@ sub regex {
 
     ( $residue, $p[0] ) = validate_pos(
         @_,
-        {
-            type  => Params::Validate::SCALAR,
-            regex => qr/^(?:$aa_match|start|lower|upper)$/
-        },
+        { type => Params::Validate::SCALAR },
         { type => Params::Validate::HASHREF, default => {} }
     );
 
     my %p = validate(
         @p,
         {
+
             # Make sure strand is 1 or -1 and set default
             strand => {
                 default => $DEFAULT_STRAND,
@@ -186,12 +206,13 @@ sub regex {
     }
 
     # If the regex wasn't defined, build it by calling codons
-    $regex = join '|', @{ $self->codons(@_) };
+    $regex = join '|', @{ $self->codons( $residue, \%p ) };
     $regex = qr/$regex/;
 
     # Cache the regex and return it
     $self->_regexes->[$rc]->{$residue} = $regex;
-    TRACE 'caching regular expression, leaving regex';
+
+    TRACE 'cached regular expression, leaving regex';
     return $regex;
 }
 
@@ -200,8 +221,18 @@ sub regex {
     my $locations = $translator->find( $seq_ref, $residue );
     my $locations = $translator->find( $seq_ref, $residue, \%params );
 
-Find the indexes of a given residue in a sequence. Valid options for the params
-hash are:
+Find the indexes of a given residue in a sequence. In addition to the
+one-letter codes for amino acids, the following are valid inputs for the
+residue:
+
+    start:  Start codons
+    stop:   Stop codons (you may also use "*" which is the 1 letter code)
+    lower:  Start or stop codons, depending up on strand
+    upper:  Start or stop codons, depending up on strand
+
+"lower" and "upper" match the respective ends of a CDS for a given strand (i.e.
+on the positive strand, lower matches the start, and upper matches the stop).
+Valid options for the params hash are:
 
     strand:     1 or -1; default = 1
 
@@ -214,23 +245,32 @@ sub find {
     my ( $seq_ref, $residue, @p );
 
     ( $seq_ref, $residue, $p[0] ) = validate_pos(
-        @_, { type => Params::Validate::SCALARREF },
-        1, { default => {}, type => Params::Validate::HASHREF }
+        @_,
+        { type    => Params::Validate::SCALARREF },
+        { type    => Params::Validate::SCALAR },
+        { default => {}, type => Params::Validate::HASHREF }
     );
 
-    my %p = validate(
-        @p,
-        {
-            strand => {
-                default => $DEFAULT_STRAND,
-                regex   => qr/^[+-]?1$/,
-                type    => Params::Validate::SCALAR
-            }
-        }
-    );
+    # Strand is unnecessary for now. Uncomment this section when other options
+    # are added to find.
+    #    my %p = validate(
+    #        @p,
+    #        {
+    #            strand => {
+    #                default => $DEFAULT_STRAND,
+    #                regex   => $STRAND_REGEX,
+    #                type    => Params::Validate::SCALAR
+    #            }
+    #        }
+    #    );
+    #
+    #    my $regex = $self->regex( $residue, \%p );
 
-    my $regex = $self->regex( $residue, \%p );
+    my $regex = $self->regex( $residue, $p[0] );
 
+    # Use a look-ahead in the regular expression. For instance, if the amino
+    # acid has the codon AAA, and you have a poly-A region, the match will be
+    # at every single base, not every 3 bases.
     my @positions;
     while ( $$seq_ref =~ m/(?=$regex)/ig ) {
         push @positions, pos($$seq_ref);
@@ -273,16 +313,14 @@ You can also specify which strand you are looking for the ORF to be on.
 
 For ORFs starting at the very beginning of the strand or trailing off the end,
 but not in phase with the start or ends, this method will cut at the last
-complete codon.
-
-    Eg:
+complete codon. For example, if the following was the longest ORF:
 
     0 1 2 3 4 5 6 7 8 9 10
      A C G T A G T T T A
                    *****
        <--------------->
 
-Will return:
+getORF will return:
 
     {
         strand => 1,
@@ -327,14 +365,14 @@ sub getORF {
             # Verify that strand is -1, 0 or 1, set default
             strand => {
                 default => $DEFAULT_SEARCH_STRAND,
-                regex   => qr/^[+-]?[01]$/,
+                regex   => $SEARCH_STRAND_REGEX,
                 type    => Params::Validate::SCALAR
             },
 
             # Verify that lower is within the sequence, default to 0
             lower => {
                 default   => 0,
-                regex     => qr/^[0-9]+$/,
+                regex     => $INTEGER_REGEX,
                 type      => Params::Validate::SCALAR,
                 callbacks => {
                     'lower >= 0'          => sub { $_[0] >= 0 },
@@ -345,7 +383,7 @@ sub getORF {
             # Verify that upper is within the sequence, default to length
             upper => {
                 default   => length($$seq_ref),
-                regex     => qr/^[0-9]+$/,
+                regex     => $INTEGER_REGEX,
                 type      => Params::Validate::SCALAR,
                 callbacks => {
                     'upper >= 0'          => sub { $_[0] >= 0 },
@@ -356,7 +394,7 @@ sub getORF {
             # Verify that sanitized is a boolean, set default
             sanitized => {
                 default => $DEFAULT_SANITIZED,
-                regex   => qr/^[01]$/,
+                regex   => $BOOLEAN_REGEX,
                 type    => Params::Validate::SCALAR
             }
         }
@@ -503,14 +541,14 @@ sub getCDS {
             # Verify that strand is -1, 0 or 1, set default
             strand => {
                 default => $DEFAULT_SEARCH_STRAND,
-                regex   => qr/^[+-]?[01]$/,
+                regex   => $SEARCH_STRAND_REGEX,
                 type    => Params::Validate::SCALAR
             },
 
             # Verify that lower is within the sequence, default to 0
             lower => {
                 default   => 0,
-                regex     => qr/^[0-9]+$/,
+                regex     => $INTEGER_REGEX,
                 type      => Params::Validate::SCALAR,
                 callbacks => {
                     'lower >= 0'          => sub { $_[0] >= 0 },
@@ -521,7 +559,7 @@ sub getCDS {
             # Verify that upper is within the sequence, default to length
             upper => {
                 default   => length($$seq_ref),
-                regex     => qr/^[0-9]+$/,
+                regex     => $INTEGER_REGEX,
                 type      => Params::Validate::SCALAR,
                 callbacks => {
                     'upper >= 0'          => sub { $_[0] >= 0 },
@@ -532,14 +570,13 @@ sub getCDS {
             # Verify that strict is 0, 1 or 2, default to 1
             strict => {
                 default => 1,
-                regex   => qr/^[012]$/,
-
+                regex   => $STRICT_REGEX,
             },
 
             # Verify that sanitized is a boolean, set default
             sanitized => {
                 default => $DEFAULT_SANITIZED,
-                regex   => qr/^[01]$/,
+                regex   => $BOOLEAN_REGEX,
                 type    => Params::Validate::SCALAR
             }
         }
@@ -724,14 +761,14 @@ sub nonstop {
             # Verify that strand is -1, 0 or 1, default to 0
             strand => {
                 default => $DEFAULT_SEARCH_STRAND,
-                regex   => qr/^[+-]?[01]$/,
+                regex   => $SEARCH_STRAND_REGEX,
                 type    => Params::Validate::SCALAR
             },
 
             # Verify that sanitized is a boolean, set default
             sanitized => {
                 default => $DEFAULT_SANITIZED,
-                regex   => qr/^[01]$/,
+                regex   => $BOOLEAN_REGEX,
                 type    => Params::Validate::SCALAR
             }
         }
