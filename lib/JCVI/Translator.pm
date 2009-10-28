@@ -66,7 +66,7 @@ package JCVI::Translator;
 use strict;
 use warnings;
 
-use version; our $VERSION = qv('0.5.5');
+use version; our $VERSION = qv('0.5.6');
 
 use base qw(Class::Accessor::Fast);
 __PACKAGE__->mk_accessors(qw(table base));
@@ -256,6 +256,13 @@ sub translate {
         { type => Params::Validate::HASHREF, default => {} }
     );
 
+    # Check the sanitized value separately
+    my $sanitized = _is_sanitized(@p);
+
+    # Clean the sequence and cache it
+    $seq_ref = cleanDNA($seq_ref) unless ($sanitized);
+    $self->base->set_seq($seq_ref);
+
     my %p = validate(
         @p,
         {
@@ -301,11 +308,6 @@ sub translate {
                 default => $DEFAULT_PARTIAL,
                 regex   => qr/^[01]$/,
                 type    => Params::Validate::SCALAR
-            },
-            sanitized => {
-                default => $DEFAULT_SANITIZED,
-                regex   => qr/^[01]$/,
-                type    => Params::Validate::SCALAR
             }
         }
     );
@@ -319,10 +321,6 @@ sub translate {
     # Return undef if the offset is bigger than the space between bounds
     return undef if ( $p{upper} <= $p{lower} + $p{offset} );
 
-    # Clean the sequence and cache it
-    $seq_ref = cleanDNA($seq_ref) unless ( $p{sanitized} );
-    $self->base->set_seq($seq_ref);
-
     # Set the partial status
     $self->base->set_partial( $p{partial} );
 
@@ -333,6 +331,20 @@ sub translate {
     # Translate and convert the resulting arrayref to a string
     my $peptide = join( '', @{ $self->base->translate() } );
     return \$peptide;
+}
+
+sub _is_sanitized {
+    my ($p) = @_;
+
+    my $sanitized = $DEFAULT_SANITIZED;
+    if ( exists $p->{sanitized} ) {
+        $sanitized = $p->{sanitized};
+        croak qq{Invalid value for sanitized "$sanitized" (must be 0 or 1) }
+          unless ( $sanitized =~ m/^[01]$/ );
+        delete $p->{sanitized};
+    }
+
+    return $sanitized;
 }
 
 =head2 translate6
@@ -387,6 +399,14 @@ sub translate6 {
         { type => Params::Validate::HASHREF, default => {} }
     );
 
+    # Check the sanitized value separately
+    my $sanitized = _is_sanitized(@p);
+
+    # Clean the sequence and cache it
+    $seq_ref = cleanDNA($seq_ref) unless ($sanitized);
+    $self->base->set_seq($seq_ref);
+
+
     my %p = validate(
         @p,
         {
@@ -418,17 +438,9 @@ sub translate6 {
                 default => $DEFAULT_PARTIAL,
                 regex   => qr/^[01]$/,
                 type    => Params::Validate::SCALAR
-            },
-            sanitized => {
-                default => $DEFAULT_SANITIZED,
-                regex   => qr/^[01]$/,
-                type    => Params::Validate::SCALAR
             }
         }
     );
-
-    $seq_ref = cleanDNA($seq_ref) unless ( $p{sanitized} );
-    $self->base->set_seq($seq_ref);
 
     $self->base->set_partial( $p{partial} );
 
@@ -494,6 +506,13 @@ sub translate_exons {
         { type => Params::Validate::HASHREF, default => {} }
     );
 
+    # Check the sanitized value separately
+    my $sanitized = _is_sanitized(@p);
+
+    # Clean the sequence and cache it
+    $seq_ref = cleanDNA($seq_ref) unless ($sanitized);
+    $self->base->set_seq($seq_ref);
+
     # Validate optional arguments
     my %p = validate(
         @p,
@@ -525,9 +544,6 @@ sub translate_exons {
     my @exons = sort {
         ( ( $a->[0] <=> $b->[0] ) || ( $a->[1] <=> $b->[1] ) ) * $p{strand}
     } @$exons;
-
-    $seq_ref = cleanDNA($seq_ref) unless ( $p{sanitized} );
-    $self->base->set_seq($seq_ref);
 
     $self->base->set_partial( $p{partial} );
 
@@ -617,12 +633,14 @@ sub translate_codon {
     my %p = validate(
         @p,
         {
+
             # Make sure strand is 1 or -1
             strand => {
                 default => 1,
                 regex   => qr/^[+-]?1$/,
                 type    => Params::Validate::SCALAR
             },
+
             # Make sure it is a boolean value
             start => {
                 default => 0,
