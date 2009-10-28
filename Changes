@@ -1,5 +1,8 @@
 Revision history for JCVI-Translator
 
+0.5.5   Apr 23 2009
+  - Fixed bug in Base where Xs weren't being put in when base isn't found
+
 0.5.4   Apr 15 2009
   - Put use version on same line as $VERSION declared
   - Added META.yml so make dist would work

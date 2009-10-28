@@ -66,7 +66,7 @@ package JCVI::Translator;
 use strict;
 use warnings;
 
-use version; our $VERSION = qv('0.5.4');
+use version; our $VERSION = qv('0.5.5');
 
 use base qw(Class::Accessor::Fast);
 __PACKAGE__->mk_accessors(qw(table base));

@@ -193,7 +193,7 @@ sub translate {
 
         # Grab the codon, and look it up in the translation table
         my $codon = substr( $$seq_ref, $index, 3 );
-        push @residues, $self->{table}->{$codon};
+        push @residues, $self->{table}->{$codon} || 'X';
         
         # Increment the index
         $index += $self->{increment};
@@ -212,7 +212,7 @@ sub start {
     my ($self) = @_;
 
     # If start == stop, don't do anything
-    return '' if ( $self->{start} == $self->{stop} );
+    return () if ( $self->{start} == $self->{stop} );
 
     my $seq_ref = $self->{seq_ref};
     
@@ -221,7 +221,7 @@ sub start {
     my $start   = $self->{starts}->{$codon};
 
     # Return the empty string if start isn't found in the translation table
-    return '' unless ($start);
+    return () unless ($start);
 
     # Increment the start location and return the start codon
     $self->{start} += $self->{increment};

@@ -26,11 +26,8 @@ is( ${ $translator->translate( \$seq, { strand => -1, upper => 59 } ) },
 is( ${ $translator->translate( \$seq, { strand => -1, upper => 58 } ) },
     'MGPRGTGGA*RSRMACMIS', 'Translate frame -3' );
 
-is(
-    ${ $translator->translate( \$seq, { partial => 1 } ) },
-    'LISCMPFSTAMRLLFLVGPK',
-    q{Translate 5' partial frame 1}
-);
+is( ${ $translator->translate( \$seq, { partial => 1 } ) },
+    'LISCMPFSTAMRLLFLVGPK', q{Translate 5' partial frame 1} );
 
 is(
     ${
@@ -40,3 +37,6 @@ is(
     'LGPRGTGGA*RSRMACMIS',
     q{Translate 5' partial frame -3}
 );
+
+is( ${ $translator->translate( \'NNN' ) }, 'X',
+    q{Translate not found as 'X'} )
