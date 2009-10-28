@@ -67,7 +67,7 @@ use strict;
 use warnings;
 
 use version;
-our $VERSION = qv('0.5.2');
+our $VERSION = qv('0.5.3');
 
 use base qw(Class::Accessor::Fast);
 __PACKAGE__->mk_accessors(qw(table base));

@@ -391,8 +391,8 @@ sub add_translation {
     $table->store( $residue, $$codon_ref, $$rc_codon_ref );
 
     # Store the reverse lookup
-    $residue = 'start' if ( $p{start} );
-    $self->_reverse->push( 'start', $$codon_ref, $$rc_codon_ref );
+    $residue = '+' if ( $p{start} );
+    $self->_reverse->push( $residue, $$codon_ref, $$rc_codon_ref );
 }
 
 =head2 bootstrap

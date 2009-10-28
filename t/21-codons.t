@@ -23,18 +23,31 @@ ok( !$@, 'codons ran with strand = 1' );
 
 eval { $utils->codons( 'F', { strand => -1 } ) };
 ok( !$@, 'codons ran with strand = -1' );
-
 eval { $utils->codons( 'F', { strand => 2 } ) };
 ok( $@, 'codons died with strand = 2' );
 
-my @expected = ( [qw(TTT TTC TTY)], [qw(AAA GAA RAA)] );
+my @entries = (
+    [ 'F' => [ [qw(TTT TTC TTY)], [qw(AAA GAA RAA)] ] ],
+    [
+        'start' => [
+            [qw(YTG WTG MTG HTG TTG CTG ATG)],
+            [qw(CAR CAW CAK CAD CAA CAG CAT)]
+        ]
+    ]
+);
 
-foreach my $strand ( 1, -1 ) {
-    my $codons = $utils->codons( 'F', { strand => $strand } );
-    my $expected = shift @expected;
-    is( scalar(@$codons), scalar(@$expected), 'Expected number of codons' );
+foreach my $entry (@entries) {
+    my ( $residue, $expecteds ) = @$entry;
 
-    my $lc = List::Compare->new( $expected, $codons );
+    foreach my $strand ( 1, -1 ) {
+        my $codons = $utils->codons( $residue, { strand => $strand } );
+        my $expected = shift @$expecteds;
+        is( scalar(@$codons), scalar(@$expected),
+            "Got expected number of codons for $residue" );
 
-    is( scalar( $lc->get_symdiff ), 0, '0 differences between lists' );
+        my $lc = List::Compare->new( $expected, $codons );
+
+        is( scalar( $lc->get_symdiff ), 0,
+            '0 differences between codon lists' );
+    }
 }

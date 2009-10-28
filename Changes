@@ -1,8 +1,13 @@
 Revision history for JCVI-Translator
 
+0.5.3   Apr 13 2009
+ - Fixed inconsistencies in the way the start codon is being stored in the
+   reverse translation table
+ - Added test for above condition
+
 0.5.2   Apr 13 2009
  - Even more documentation in Utils
- - codons/regex/find method in Utils can take "stop" for stop codons 
+ - codons/regex/find method in Utils can take "stop" for stop codons
 
 0.5.1   Apr 13 2009
  - Better documentation in Utils

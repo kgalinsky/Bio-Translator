@@ -57,7 +57,7 @@ our $BOOLEAN_REGEX       = qr/^[01]$/;
 our $INTEGER_REGEX       = qr/^\d+$/;
 our $STRAND_REGEX        = qr/^[+-]?1$/;
 our $SEARCH_STRAND_REGEX = qr/^[+-]?[01]$/;
-our $RESIDUE_REGEX       = qr/^(?:$aa_match|start|stop|lower|upper)$/;
+our $RESIDUE_REGEX       = qr/^(?:$aa_match|\+|start|stop|lower|upper)$/;
 our $STRICT_REGEX        = qr/^[012]$/;
 
 sub _new {
@@ -79,8 +79,9 @@ Returns a list of codons for a particular residue or start codon. In addition
 to the one-letter codes for amino acids, the following are valid inputs for the
 residue:
 
-    start:  Start codons
-    stop:   Stop codons (you may also use "*" which is the 1 letter code)
+    start:  Start codons (you may also use "+" which is what the translator
+            uses as the 1-letter code for start codons)
+    stop:   Stop codons (you may also use "*" which is the 1-letter code)
     lower:  Start or stop codons, depending up on strand
     upper:  Start or stop codons, depending up on strand
 
@@ -124,17 +125,14 @@ sub codons {
     # Set the reverse comlement variable
     my $rc = $p{strand} == 1 ? 0 : 1;
 
-    # If residue is 'stop' change it to '*'
-    if ( $residue eq 'stop' ) { $residue = '*' }
+    # Format start/stop to be '+' and '*' which is how translator stores them
+    if    ( $residue eq 'stop' )  { $residue = '*' } 
+    elsif ( $residue eq 'start' ) { $residue = '+' }
 
-    # Do nothing if residue is "start" (don't want to capitalize)
-    elsif ( $residue eq 'start' ) { }
-
-    # Lower bound is "*" on the - strand, "start" on the + strand
-    elsif ( $residue eq 'lower' ) { $residue = $rc ? '*' : 'start' }
-
-    # Upper bound is "start" on the - strand, or "*" on the + strand
-    elsif ( $residue eq 'upper' ) { $residue = $rc ? 'start' : '*' }
+    # Lower bound is stop on the - strand, start on the + strand. Upper bound
+    # is the reverse
+    elsif ( $residue eq 'lower' ) { $residue = $rc ? '*' : '+' }
+    elsif ( $residue eq 'upper' ) { $residue = $rc ? '+' : '*' }
 
     # Capitalize all other residues
     else { $residue = uc $residue }
@@ -157,7 +155,8 @@ Returns a regular expression matching codons for a particular amino acid
 residue. In addition to the one-letter codes for amino acids, the following are
 valid inputs for the residue:
 
-    start:  Start codons
+    start:  Start codons (you may also use "+" which is what the translator
+            uses as the 1-letter code for start codons)
     stop:   Stop codons (you may also use "*" which is the 1 letter code)
     lower:  Start or stop codons, depending up on strand
     upper:  Start or stop codons, depending up on strand
@@ -225,7 +224,8 @@ Find the indexes of a given residue in a sequence. In addition to the
 one-letter codes for amino acids, the following are valid inputs for the
 residue:
 
-    start:  Start codons
+    start:  Start codons (you may also use "+" which is what the translator
+            uses as the 1-letter code for start codons)
     stop:   Stop codons (you may also use "*" which is the 1 letter code)
     lower:  Start or stop codons, depending up on strand
     upper:  Start or stop codons, depending up on strand
