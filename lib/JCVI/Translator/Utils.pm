@@ -7,419 +7,614 @@
 
 =head1 NAME
 
-package Utils
+JCVI::Translator::Utils - Utilities that requrie a translation table
 
-=head1 SYNOPSES
+=head1 SYNOPSIS
 
- use JCVI::Translator::Utils;
+    use JCVI::Translator::Utils;
 
- my $translator = new JCVI::Translator::Utils(
-                           id => $id,
-                           name => $name,
-                           table => $table,
-                           tableRef => $tableRef
-                           );
+    # Same constructor as JCVI::Translator
+    my $utils = new JCVI::Translator::Utils();
+    my $utils = custom JCVI::Translator( \$custom_table );
+
+    my $codons = $utils->codons( $residue );
+    my $regex  = $utils->regex( $residue );
+
+    my $orf = $utils->getORF( $seq_ref );
+    my $cds = $utils->getCDS( $seq_ref );
+
+    my $frames = $utils->nonstop( $seq_ref );
 
 =head1 DESCRIPTION
 
 See Translator for more info. Utils extends Translator and
 adds a few more functions that are normally not used.
 
-=head1 AUTHOR
-
-Kevin Galinsky, <kgalinsk@jcvi.org>
-
-=head1 FUNCTIONS
-
-=over
-
 =cut
 
 package JCVI::Translator::Utils;
-use base JCVI::Translator;
 
 use strict;
 use warnings;
 
-our $VERSION = '0.2.2';
+use base qw(JCVI::Translator);
+__PACKAGE__->mk_accessors(qw( _regexes ));
 
 use Log::Log4perl qw(:easy);
-use Params::Validate qw(:all);
+use Params::Validate;
 
-=item getORF()
+use JCVI::DNATools qw( cleanDNA );
+use JCVI::AATools qw( $aa_match );
 
-=item [$start, $stop] = $translator->getORF($seqRef, $strand);
+our $DEFAULT_STRAND    = 0;
+our $DEFAULT_SANITIZED = 0;
 
-This will get the longest region between stops and return
-the strand, lower and upper bounds, inclusive:
+=head1 METHODS
+
+=cut
+
+sub _new {
+    my $class = shift;
+    my $self  = $class->SUPER::_new();
+
+    $self->_regexes( [] );
+    foreach my $rc ( 0 .. 1 ) {
+        $self->_regexes->[$rc] = {};
+    }
+
+    return $self;
+}
+
+=head2 codons
+
+    my $codon_array = $translator->codons( $residue);
+    my $codon_array = $translator->codons( $residue, $strand );
+
+Returns a list of codons for a particular residue or start codon. For start
+codons, input "start" for the residue.
+
+=cut
+
+sub codons {
+    my $self = shift;
+    my ( $residue, $strand ) = validate_pos(
+        @_,
+        { regex => qr/^(?:$aa_match|start|lower|upper)$/ },
+        {
+            default => 1,
+            regex   => qr/^[+-]?1$/
+        }
+    );
+
+    if    ( $residue eq 'lower' ) { $residue = $strand == 1  ? 'start' : '*' }
+    elsif ( $residue eq 'upper' ) { $residue = $strand == -1 ? 'start' : '*' }
+    elsif ( $residue eq 'start' ) { $residue = 'start' }
+    else                          { $residue = uc $residue }
+
+    return [
+        @{ $self->_reverse->[ $strand == 1 ? 0 : 1 ]->{$residue} ||= [] } ];
+}
+
+=head2 regex
+
+    my $regex = $translator->regex( $residue );
+    my $regex = $translator->regex( $residue, $strand );
+
+Returns a regular expression matching codons for a particular amino acid
+residue. In addition, three special values are allowed:
+
+    start:  Start codons
+    lower:  Start or stop codons, depending up on strand
+    lower:  Start or stop codons, depending up on strand
+
+lower and upper match the respective ends of a CDS for a given strand (i.e. on
+the positive strand, lower matches the start, and upper matches the stop). The
+stop codon is stored as "*" by the translator.
+
+=cut
+
+sub regex {
+    my $self = shift;
+    my ( $residue, $strand ) = validate_pos(
+        @_, 1,
+        {
+            default => 1,
+            regex   => qr/^[+-]?1$/
+        }
+    );
+
+    my $rc = $strand == 1 ? 0 : 1;
+
+    my $regex = $self->_regexes->[$rc]->{residue};
+
+    return $regex if ( defined $regex );
+
+    $regex = join '|', @{ $self->codons(@_) };
+    $regex = qr/$regex/;
+
+    $self->_regexes->[$rc]->{residue} = $regex;
+    return $regex;
+}
+
+=head2 getORF
+
+    my $orf_hash = $translator->getORF( $seq_ref );
+    my $orf_hash = $translator->getORF( $seq_ref, \%params );
+
+This will get the longest region between stops and return the strand, lower and
+upper bounds, inclusive. The parameters are:
+
+    strand:     0, 1 or -1; default = 0 (meaning search both strands)
+    lower:      integer between 0 and length; default = 0
+    upper:      integer between 0 and length; default = length
+    sanitized:  0 or 1; default = 0
+
+Lower and upper are used to specify bounds between which you are searching.
+Suppose the following was the longest ORF:
 
  0 1 2 3 4 5 6 7 8 9 10
   T A A A T C T A A G
   *****       *****
         <--------->
 
-Will return [1, 3, 9]. You can also specify which strand
-you are looking for the ORF to be on.
+This will return:
 
-For ORFs starting at the very beginning of the strand or
-trailing off the end, but not in phase with the start or
-ends, this method will cut at the last complete codon.
+    {
+        strand => 1,
+        lower  => 3,
+        upper  => 9
+    }
 
- Eg:
+You can also specify which strand you are looking for the ORF to be on.
 
- 0 1 2 3 4 5 6 7 8 9 10
-  A C G T A G T T T A
-                *****
-    <--------->
+For ORFs starting at the very beginning of the strand or trailing off the end,
+but not in phase with the start or ends, this method will cut at the last
+complete codon.
 
-Will return [-1, 1, 7]. The distance between lower and
-upper will always be a multiple of 3. This is to make it
-clear which frame the ORF is in.
+    Eg:
+
+    0 1 2 3 4 5 6 7 8 9 10
+     A C G T A G T T T A
+                   *****
+       <--------------->
+
+Will return:
+
+    {
+        strand => 1,
+        lower  => 1,
+        upper  => 10
+    }
+
+The distance between lower and upper will always be a multiple of 3. This is to
+make it clear which frame the ORF is in. The resulting hash may be passed to
+the translate method.
 
 Example:
 
- $ref = $translator->getORF(\'TAGAAATAG');
-
-Output:
-
- $ref = [$strand, $lower, $upper]
+    my $orf_ref = $translator->getORF( \'TAGAAATAG' );
+    my $orf_ref = $translator->getORF( \$seq, { strand => -1 } );
+    my $orf_ref = $translator->getORF(
+        \$seq,
+        {
+            lower => $lower,
+            upper => $upper
+        }
+    );
 
 =cut
 
 sub getORF {
+    TRACE('getORF called');
+
     my $self = shift;
 
-    my ( $seqRef, $strand )
-        = validate_pos( @_,
-                        { type => SCALARREF },
-                        { default => 0,
-                          regex   => qr/^[+-]?[01]$/
-                        }
-        );
+    my ( $seq_ref, @p );
+    ( $seq_ref, $p[0] ) = validate_pos(
+        @_,
+        { type => Params::Validate::SCALARREF },
+        { type => Params::Validate::HASHREF, default => {} }
+    );
 
-    DEBUG('getORF called');
-
-    my ( $best_strand, $lower, $upper ) = ( 1, 0, 0 );
-
-    foreach my $cur_strand ( $strand == 0 ? ( -1, 1 ) : ($strand) ) {
-        my @lowers = ( 0 .. 2 );
-        my $stopRegex = $self->regex( 'stop', $cur_strand );
-
-        ########################################
-        # Rather than using a regular expression
-        # to find regions between stops, it
-        # should be  more computationally
-        # efficient to find all the stops and
-        # compute from there. However, Perl's
-        # regular expression engine may be
-        # faster than code execution, so this
-        # may not be the case
-
-        ########################################
-        # A lookahead is used for two reasons:
-        # the main one is to get every position
-        # within two bases of the end of the
-        # sequence, and also to cope with the
-        # possibility of overlapping stop
-        # codons.
-
-        while (
-            $$seqRef =~ /(?=
-				($stopRegex)|.{0,2}$
-			    )/gx
-            )
+    my %p = validate(
+        @p,
         {
-            my $curUpper = pos $$seqRef;
-            my $frame    = $curUpper % 3;
+            strand => {
+                default => 0,
+                regex   => qr/^[+-]?[01]$/,
+                type    => Params::Validate::SCALAR
+            },
+            lower => {
+                default   => 0,
+                regex     => qr/^[0-9]+$/,
+                type      => Params::Validate::SCALAR,
+                callbacks => {
+                    'lower >= 0'          => sub { $_[0] >= 0 },
+                    'lower <= seq_length' => sub { $_[0] <= length($$seq_ref) }
+                }
+            },
+            upper => {
+                default   => length($$seq_ref),
+                regex     => qr/^[0-9]+$/,
+                type      => Params::Validate::SCALAR,
+                callbacks => {
+                    'upper >= 0'          => sub { $_[0] >= 0 },
+                    'upper <= seq_length' => sub { $_[0] <= length($$seq_ref) }
+                }
+            },
+            sanitized => { default => $DEFAULT_SANITIZED }
+        }
+    );
 
-            $curUpper += length $1 if ( $1 && ( $cur_strand == 1 ) );
+    return undef if ( $p{upper} < $p{lower} );
 
-            ########################################
-            # If the current distance between start
-            # and stop is greater than the distance
-            # between the stored start and stop,
-            # change the stored start and stop to be
-            # the current one.
+    $seq_ref = cleanDNA($seq_ref) unless ( $p{sanitized} );
 
-            if ( $upper - $lower < $curUpper - $lowers[$frame] ) {
-                $best_strand = $cur_strand;
-                $lower       = $lowers[$frame];
-                $upper       = $curUpper;
-            }
+    # Initialize the longest ORF.
+    my %ORF = (
+        strand => 0,
+        lower  => $p{lower},
+        upper  => $p{lower}
+    );
 
-            $lowers[$frame] = $curUpper;
+    # Go through each strand which we are looking in
+    foreach my $strand ( $p{strand} == 0 ? ( -1, 1 ) : $p{strand} ) {
+
+        # Initialize lower bounds and regular expression for stop
+        my @lowers = map { $_ + $p{lower} } ( 0 .. 2 );
+        my $stop_regex = $self->regex( '*', $strand );
+
+        # Look for all the stops in our sequence using a regular expression. A
+        # lookahead is used to cope with the possibility of overlapping stop
+        # codons
+
+        pos($$seq_ref) = $p{lower};
+
+        while ( $$seq_ref =~ /(?=stop_regex)/gx ) {
+
+            # Get the location of the upper bound. Add 3 for the length of the
+            # stop codon if we are on the + strand.
+            my $upper = pos($$seq_ref) + ( $strand == 1 ? 3 : 0 );
+
+            # End the iteration if we are out of range
+            last if ( $upper > $p{upper} );
+
+            # Call our helper function
+            $self->_getORF( $strand, \@lowers, $upper, $p{lower}, \%ORF );
         }
 
+        # Now evaluate for the last three ORFS
+        foreach my $i ( 0 .. 2 ) {
+            my $upper = $p{upper} - $i;
+            $self->_getORF( $strand, \@lowers, $upper, $p{lower}, \%ORF );
+        }
+
+        # NOTE: Perl's regular expression engine could be faster than code
+        # execution, so it may be faster to find ORFS using regular expression
+        # matching an entire ORF.
+        # m/(?=(^|$stop)((.{3})*)($stop|$))/g
     }
 
-    return [ $best_strand, $lower, $upper ];
+    return \%ORF;
 }
 
-=item getCDS()
+# Helper function for getORF above.
+sub _getORF {
+    my $self = shift;
+    my ( $strand, $lowers, $upper, $offset, $longest ) = @_;
 
-=item [$start, $stop] = $translator->getCDS($seqRef, $strand, $strict);
+    # Calculate the frame relative to the starting offset
+    my $frame = ( $upper - $offset ) % 3;
 
-This will return the strand and boundaries of the longest
-CDS.
+    # Compare if this is better than the longest ORF
+    $self->_compare_regions(
+        $longest,
+        {
+            strand => $strand,
+            lower  => $lowers->[$frame],
+            upper  => $upper
+        }
+    );
+
+    # Mark the lower bound for this frame
+    $lowers->[$frame] = $upper;
+}
+
+=head2 getCDS
+
+    my $cds_ref = $translator->getCDS( $seq_ref );
+    my $cds_ref = $translator->getCDS( $seq_ref, \%params );
+
+This will return the strand and boundaries of the longest CDS.
 
  0 1 2 3 4 5 6 7 8 9 10
   A T G A A A T A A G
   >>>>>       *****
   <--------------->
 
-Will return [1, 0, 9].
+Will return:
 
-Strict controls how strictly getCDS functions.
-There are 3 levels of strictness, enumerated 0, 1 and 2. 2 is the most strict,
-and in that mode, a region will only be considered a CDS if both the start and
-stop is found. In strict level 1, if a start is found, but no stop is present
-before the end of the sequence, the CDS will run until the end of the sequence.
-Strict level 0 assumes that start codon is present in each frame just before
-the start of the molecule.
+    {
+        strand => 1,
+        lower  => 0,
+        upper  => 9
+    }
+
+It takes the following parameters:
+
+    strand:     0, 1 or -1; default = 0 (meaning search both strands)
+    strict:     0, 1 or 2;  default = 1
+    sanitized:  0 or 1; default = 0
+
+Strict controls how strictly getCDS functions. There are 3 levels of
+strictness, enumerated 0, 1 and 2. 2 is the most strict, and in that mode, a
+region will only be considered a CDS if both the start and stop is found. In
+strict level 1, if a start is found, but no stop is present before the end of
+the sequence, the CDS will run until the end of the sequence. Strict level 0
+assumes that start codon is present in each frame just before the start of the
+molecule. Level 1 is a pretty safe bet, so that is the default.
 
 Example:
 
- $ref = $translator->getCDSs(\'ATGAAATAG');
- $ref = $translator->getCDSs(\'ATGAAATAG', -1);
-
-Output:
-
- $ref = [$strand, $lower, $upper]
+    my $cds_ref = $translator->getCDS(\'ATGAAATAG');
+    my $cds_ref = $translator->getCDS(\$seq, { strand => -1 } );
+    my $cds_ref = $translator->getCDS(\$seq, { strict => 2 } );
 
 =cut
 
 sub getCDS {
+    TRACE('getCDS called');
+
     my $self = shift;
 
-    my ( $seqRef, $strand, $strict )
-        = validate_pos( @_,
-                        { type => SCALARREF },
-                        { default => 0,
-                          regex   => qr/^[+-]?[01]$/
-                        },
-                        { default => 1,
-                          regex   => qr/^[012]$/
-                        }
-        );
+    my ( $seq_ref, @p );
+    ( $seq_ref, $p[0] ) = validate_pos(
+        @_,
+        { type => Params::Validate::SCALARREF, },
+        { type => Params::Validate::HASHREF, default => {} }
+    );
 
-    DEBUG('getCDS called');
-
-    my ( $best_strand, $lower, $upper ) = ( 1, 0, 0 );
-
-    foreach my $cur_strand ( $strand == 0 ? ( -1, 1 ) : ($strand) ) {
-        my $lowerRegex = $self->regex( 'lower', $cur_strand );
-        my $upperRegex = $self->regex( 'upper', $cur_strand );
-
-        ########################################
-        # Initialize
-        my @lowers;
-        if ( $cur_strand == 1 ) {
-            @lowers = ( $strict != 0 ? map {undef} ( 0 .. 2 ) : ( 0 .. 2 ) );
-        }
-        else {
-            @lowers = ( $strict == 2
-                        ? map {undef} ( 0 .. 2 )
-                        : ( 0 .. 2 )
-            );
-        }
-
-        ########################################
-        # Similar to getORF, rather than
-        # using a regular expression to find
-        # entire regions, instead find
-        # individual starts and stops and react
-        # accordingly. It captures the starts
-        # and stops separately ($1 vs $2) so
-        # that it is easy to tell if a start or
-        # a stop was matched.
-        #
-        # If strict mode is at level 2, we don't
-        # tes is a newly added feature which t CDSs trailing off the end
-        # of the molecule
-
-        my $regex = qr/(?=($lowerRegex)|($upperRegex))/;
-        $regex = qr/$regex|(?=.{0,2}$)/ unless ( $strict == 2 );
-
-        while ( $$seqRef =~ /$regex/g ) {
-
-            my $position = pos $$seqRef;
-            my $frame    = $position % 3;
-
-            ########################################
-            # If we match the lower regex we:
-            #
-            # In the case that we are on the '-'
-            # strand, that means we found a stop,
-            # so we update the lower bound.
-            #
-            # Otherwise, we are on the positive
-            # strand, meaning we have found the
-            # start, so only set the lower bound if
-            # it is not already set (don't want to
-            # overwrite the location of a previous
-            # start codon).
-
-            if ( $1
-                 && (    ( $cur_strand eq '-' )
-                      || ( !defined $lowers[$frame] ) )
-                )
-            {
-                $lowers[$frame] = $position;
-            }
-
-            ########################################
-            # If we don't match the lower regex:
-            #
-            # If this is the positive strand, that
-            # means that this is a valid stop -
-            # either a stop codon or the end of the
-            # string. Reset the lower bound in this
-            # case.
-            #
-            # On the negative strand, we only care
-            # if we matched a start. In that case,
-            # do the compute and update.
-            #
-            # Another option would be to mark where
-            # the start is, and only do the compute
-            # when we find a stop.
-
-            elsif ( ( $cur_strand == 1 ) || $2 ) {
-
-                # Move on if the lower is unset
-                next unless ( defined $lowers[$frame] );
-
-                $position += length $2 if ($2);
-
-                if ( $upper - $lower < $position - $lowers[$frame] ) {
-                    $best_strand = $cur_strand;
-                    $lower       = $lowers[$frame];
-                    $upper       = $position;
+    my %p = validate(
+        @p,
+        {
+            strand => {
+                default => 0,
+                regex   => qr/^[+-]?1$/,
+            },
+            lower => {
+                default   => 0,
+                regex     => qr/^[0-9]+$/,
+                type      => Params::Validate::SCALAR,
+                callbacks => {
+                    'lower >= 0'          => sub { $_[0] >= 0 },
+                    'lower <= seq_length' => sub { $_[0] <= length($$seq_ref) }
                 }
+            },
+            upper => {
+                default   => length($$seq_ref),
+                regex     => qr/^[0-9]+$/,
+                type      => Params::Validate::SCALAR,
+                callbacks => {
+                    'upper >= 0'          => sub { $_[0] >= 0 },
+                    'upper <= seq_length' => sub { $_[0] <= length($$seq_ref) }
+                }
+            },
+            strict => {
+                default => 1,
+                regex   => qr/^[012]$/,
 
-                # Reset lower if we found a stop
-                undef $lowers[$frame] if ( $cur_strand == 1 );
+            },
+            sanitized => { default => $DEFAULT_SANITIZED }
+        }
+    );
+
+    return undef if ( $p{upper} < $p{lower} );
+
+    $seq_ref = cleanDNA($seq_ref) unless ( $p{sanitized} );
+
+    # Initialize the longest ORF. Length is -1.
+    my %CDS = (
+        strand => 0,
+        lower  => 0,
+        upper  => -1
+    );
+
+    foreach my $strand ( $p{strand} == 0 ? ( -1, 1 ) : $p{strand} ) {
+        my $lower_regex = $self->regex( 'lower', $strand );
+        my $upper_regex = $self->regex( 'upper', $strand );
+
+        # Initialize lowers. On the + strand, we don't set the lower bounds
+        # unless strict is 0. On the - strand, we don't set the lower bounds if
+        # strict is 2. Otherwise, set the lower boudns to be the first bases.
+        my @lowers =
+          (      ( ( $strand == 1 ) && ( $p{strict} != 0 ) )
+              || ( ( $strand == -1 ) && ( $p{strict} == 2 ) ) )
+          ? (undef) x 3
+          : map { $p{lower} + $_ } ( 0 .. 2 );
+
+        # Similar to getORF, rather than using a regular expression to find
+        # entire coding regions, instead find individual starts and stops and
+        # react accordingly.
+        # The regular expression captures the starts and stops separately
+        # ($1 vs $2) so that it is easy to tell if a start or a stop was
+        # matched.
+
+        pos($$seq_ref) = $p{lower};
+
+        while ( $$seq_ref =~ /(?=($lower_regex)|($upper_regex))/g ) {
+            my $position = pos $$seq_ref;
+            last if ( $position > $p{upper} );
+
+            my $frame = $position % 3;
+
+            # If the lower regex matches:
+            #
+            # In the case that it is on the '-' strand, that means a stop was
+            # found. CDSs always end on stops, so update the lower bound.
+            #
+            # Otherwise, it is on the positive strand, meaning a start was
+            # found. Internal start codons are allowed, so only set the lower
+            # bound if it is not already set.
+            if ($1) {
+                if (   ( $strand == -1 )
+                    || ( !defined $lowers[$frame] ) )
+
+                {
+                    $lowers[$frame] = $position;
+                }
             }
+
+            # If the lower regex wasn't matched, the the upper one was.
+            #
+            # If this is the positive strand, that means that this is a stop
+            # codon. Compute the CDS, update if necessary, and reset the lower
+            # bound in this case.
+            #
+            # On the negative strand, that means that a start was matched.
+            # Compute the CDS, update if necessary, but don't reset the lower
+            # bound.
+
+            else {
+                $position += 3;
+                last if ( $position > $p{upper} );
+
+                $self->_getCDS( $strand, \@lowers, $position, $p{lower},
+                    \%CDS );
+            }
+        }
+
+        # If strict mode is at level 2, we don't allow CDSs to trail off the
+        # end of the molecule. We also don't allow the end to trail off if we
+        # are on the - strand and strict isn't 0.
+
+        next
+          if ( ( $p{strict} == 2 )
+            || ( ( $strand == -1 ) && ( $p{strict} != 0 ) ) );
+
+        foreach my $i ( 0 .. 2 ) {
+            my $upper = $p{upper} - $i;
+            $self->_getCDS( $strand, \@lowers, $upper, $p{lower}, \%CDS );
         }
     }
 
-    return [ $best_strand, $lower, $upper ];
+    return \%CDS;
 }
 
-=item find()
-
-=item $positions = $translator->find( $seqRef, $type, $strand )
-
-Find codons of given type (i.e. start or stop) in the sequence. Note, the
-second two parameters are passed directly to regex, so please look there for
-more information. Returns an arrayref containing all the locations of all those
-codons.
-
-=cut
-
-sub find {
+# Helper function for getORF above.
+sub _getCDS {
     my $self = shift;
+    my ( $strand, $lowers, $upper, $offset, $longest ) = @_;
 
-    my @seqRef = splice @_, 0, 1;
-    my $seqRef = validate_pos( @seqRef, { type => SCALARREF } );
+    # Calculate the frame relative to the starting offset
+    my $frame = ( $upper - $offset ) % 3;
 
-    my $regex = $self->regex(@_);
+    # Do nothing if lower bound wasn't defined
+    return unless ( defined $lowers->[$frame] );
 
-    my @positions;
+    # Compare if this is better than the longest ORF
+    $self->_compare_regions(
+        $longest,
+        {
+            strand => $strand,
+            lower  => $lowers->[$frame],
+            upper  => $upper
+        }
+    );
 
-    while ( $$seqRef =~ /(?=($regex))/g ) {
-        push @positions, pos $$seqRef;
-    }
-
-    return \@positions;
+    # Mark the lower bound for this frame
+    undef $lowers->[$frame] if ( $strand == 1 );
 }
 
-=item regex()
-
-=item $regex = $translator->regex( $type, $strand )
-
-Returns a regular expression of a certain type for a given strand. These are
-'start', 'stop', 'lower' and 'upper.' Lower and upper match the lower and upper
-end of a CDS for a given strand (i.e. on the positive strand, lower matches
-the start, and upper matches the stop).
-
-=cut
-
-sub regex {
+# If the current ORF is longer than the previously stored longest bounds, store
+# the current ORF
+sub _compare_regions {
     my $self = shift;
-    my ( $type, $strand )
-        = validate_pos( @_,
-                        { regex => qr/^(?:start|stop|lower|upper)$/ },
-                        { default => 1,
-                          regex   => qr/^[+-]?1$/
-                        }
-        );
-
-    my $prefix = $strand == 1 ? '' : 'rc_';
-
-    if    ( $type eq 'lower' ) { $type = $strand == 1  ? 'start' : 'stop' }
-    elsif ( $type eq 'upper' ) { $type = $strand == -1 ? 'start' : 'stop' }
-
-    unless ( defined $self->{"${prefix}${type}Regex"} ) {
-        my $regex = join '|',
-            ( $type eq 'start'
-              ? keys %{ $self->{"${prefix}starts"} }
-              : @{ $$self{"${prefix}reverse"}{'*'} }
-            );
-        $self->{"${prefix}${type}Regex"} = qr/$regex/;
-    }
-
-    return $self->{"${prefix}${type}Regex"};
+    my ( $longest, $current ) = @_;
+    %$longest = %$current
+      if ( $longest->{upper} - $longest->{lower} <
+        $current->{upper} - $current->{lower} );
 }
 
-=item nonstop
+=head2 nonstop
 
-=item $frames = $translator->nonstop( $seqRef, $strand )
+    my $frames = $translator->nonstop( $seq_ref );
+    my $frames = $translator->nonstop( $seq_ref, \%params );
 
-Returns the frames that contain no stop codons for the sequence. $strand is
-optional and defaults to 0. Frames are 1, 2, 3, -1, -2, -3.
+Returns the frames that contain no stop codons for the sequence. Valid
+parameters are strand and sanitized. strand is defaults to 0. Frames are
+numbered -3, -2, -1, 1, 2 and 3.
 
- 3    ---->
- 2   ----->
- 1  ------>
-    -------
- -1 <------
- -2 <-----
- -3 <----
+     3   ---->
+     2  ----->
+     1 ------>
+       -------
+    -1 <------
+    -2 <-----
+    -3 <----
 
 Example:
 
- $frames = $translator->nonstop(\'TACGTTGGTTAAGTT');     # [-1, -3, 2, 3]
- $frames = $translator->nonstop(\'TACGTTGGTTAAGTT', 1);  # [2, 3]
- $frames = $translator->nonstop(\'TACGTTGGTTAAGTT', -1); # [-1, -3]
+    my $frames = $translator->nonstop(\'TACGTTGGTTAAGTT'); # [ 2, 3, -1, -3 ]
+    my $frames = $translator->nonstop(\$seq, { strand => 1 }  ); # [ 2, 3 ]
+    my $frames = $translator->nonstop(\$seq, { strand => -1 } ); # [ -1, -3 ]
 
 =cut
 
 sub nonstop {
+    TRACE('nonstop called');
+
     my $self = shift;
-    my ( $seqRef, $strand )
-        = validate_pos( @_,
-                        { type => SCALARREF },
-                        { default => 0,
-                          regex   => qr/^[+-]?1$/
-                        }
-        );
+
+    my ( $seq_ref, @p );
+    ( $seq_ref, $p[0] ) = validate_pos(
+        @_,
+        { type => Params::Validate::SCALARREF },
+        { type => Params::Validate::HASHREF, default => {} }
+    );
+
+    my %p = validate(
+        @p,
+        {
+            strand => {
+                default => 0,
+                regex   => qr/^[+-]?[01]$/,
+                type    => Params::Validate::SCALAR
+            },
+            sanitized => { default => $DEFAULT_SANITIZED }
+        }
+    );
+
+    $seq_ref = cleanDNA($seq_ref) unless ( $p{sanitized} );
 
     my @frames;
-    foreach my $cur_strand ( $strand == 0 ? ( -1, 1 ) : ($strand) ) {
-        my $stop = $self->regex( 'stop', $cur_strand );
+    foreach my $strand ( $p{strand} == 0 ? ( 1, -1 ) : $p{strand} ) {
+        my $stop = $self->regex( '*', $strand );
 
         foreach my $frame ( 0 .. 2 ) {
-            my $regex = $cur_strand == 1
-                ? qr/^.{$frame}(?:.{3})*$stop/
-                : qr/$stop(?:.{3})*.{$frame}$/;
+            my $regex =
+              $strand == 1
+              ? qr/^.{$frame}(?:.{3})*$stop/
+              : qr/$stop(?:.{3})*.{$frame}$/;
 
-            push @frames, ( $frame + 1 ) * $cur_strand
-                unless ( $$seqRef =~ m/$regex/ );
+            push @frames, ( $frame + 1 ) * $strand
+              unless ( $$seq_ref =~ m/$regex/ );
         }
     }
-    
+
     return \@frames;
 }
 
 1;
+
+=head1 AUTHOR
+
+Kevin Galinsky, <kgalinsk@jcvi.org>
+
+=head1 COPYRIGHT & LICENSE
+
+Copyright 2008-2009 J. Craig Venter Institute, all rights reserved.
+
+This program is free software; you can redistribute it and/or modify it
+under the same terms as Perl itself.
+
+=cut
