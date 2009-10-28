@@ -1,7 +1,11 @@
 Revision history for JCVI-Translator
 
+0.5.0   Apr 2 2009
+ - Split out the table into its own package
+ - Split out helper translator functions into their own package
+
 0.4.3   Apr 1 2009
-- Enforced that functions are called using func(@mandatory, %optional)
+ - Enforced that functions are called using func(@mandatory, %optional)
 
 0.4.2   Apr 1 2009
  - Added find method into utils

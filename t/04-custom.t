@@ -23,5 +23,5 @@ sncbieaa "---M---------------M---------------M----------------------------"
 );
 
 ok(
-    $translator->table_string(), 'Table string'
+    $translator->table->string (), 'Table string'
 );

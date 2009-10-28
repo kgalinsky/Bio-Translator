@@ -5,6 +5,8 @@ Makefile.PL
 README
 lib/JCVI/Translator.pm
 lib/JCVI/Translator/Utils.pm
+lib/JCVI/Translator/Table.pm
+lib/JCVI/Translator/Base.pm
 t/00-load.t
 t/boilerplate.t
 t/pod-coverage.t

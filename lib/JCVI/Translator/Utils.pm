@@ -49,20 +49,15 @@ use JCVI::AATools qw( $aa_match );
 our $DEFAULT_STRAND    = 0;
 our $DEFAULT_SANITIZED = 0;
 
+sub _new {
+    my $self = shift->SUPER::_new(@_);
+    $self->_regexes([ {}, {} ]);
+    return $self;
+}
+
 =head1 METHODS
 
 =cut
-
-sub _new {
-    my $self = shift->SUPER::_new();
-
-    $self->_regexes( [] );
-    foreach my $rc ( 0 .. 1 ) {
-        $self->_regexes->[$rc] = {};
-    }
-
-    return $self;
-}
 
 =head2 codons
 
@@ -85,6 +80,7 @@ sub codons {
         { type  => Params::Validate::HASHREF, default => {} }
     );
 
+    # Make sure strand is 1 or -1
     my %p = validate(
         @p,
         {
@@ -95,15 +91,27 @@ sub codons {
         }
     );
 
-    if ( $residue eq 'lower' ) { $residue = $p{strand} == 1 ? 'start' : '*' }
-    elsif ( $residue eq 'upper' ) {
-        $residue = $p{strand} == -1 ? 'start' : '*';
-    }
-    elsif ( $residue eq 'start' ) { $residue = 'start' }
+    # Set the reverse comlement variable
+    my $rc = $p{strand} == 1 ? 0 : 1;
+
+    # Lower bound is "*" on the - strand, "start" on the + strand
+    if ( $residue eq 'lower' ) { $residue = $rc ? '*' : 'start' }
+
+    # Upper bound is "start" on the - strand, or "*" on the + strand
+    elsif ( $residue eq 'upper' ) { $residue = $rc ? 'start' : '*' }
+
+    # Do nothing if residue is "start" (don't want to capitalize)
+    elsif ( $residue eq 'start' ) { }
+
+    # Capitalize all other residues
     else                          { $residue = uc $residue }
 
-    return [
-        @{ $self->_reverse->[ $p{strand} == 1 ? 0 : 1 ]->{$residue} ||= [] } ];
+    # Get the codons array or set it to the empty array
+    my $codons = $self->table->_reverse->[$rc]->{$residue} || [];
+
+    # Return a copy of the arrayref so that the internal array can't get
+    # modified
+    return [@$codons];
 }
 
 =head2 regex
@@ -132,7 +140,7 @@ sub regex {
     ( $residue, $p[0] ) = validate_pos(
         @_,
         { regex => qr/^(?:$aa_match|start|lower|upper)$/ },
-        { type  => Params::Validate::HASHREF, default => {} }
+        { type => Params::Validate::HASHREF, default => {} }
     );
 
     my %p = validate(
@@ -327,7 +335,7 @@ sub getORF {
 
         # Initialize lower bounds and regular expression for stop
         my @lowers = map { $_ + $p{lower} } ( 0 .. 2 );
-        my $stop_regex = $self->regex( '*', $strand );
+        my $stop_regex = $self->regex( '*', { strand => $strand } );
 
         # Look for all the stops in our sequence using a regular expression. A
         # lookahead is used to cope with the possibility of overlapping stop
@@ -485,8 +493,8 @@ sub getCDS {
     );
 
     foreach my $strand ( $p{strand} == 0 ? ( -1, 1 ) : $p{strand} ) {
-        my $lower_regex = $self->regex( 'lower', $strand );
-        my $upper_regex = $self->regex( 'upper', $strand );
+        my $lower_regex = $self->regex( 'lower', { strand => $strand } );
+        my $upper_regex = $self->regex( 'upper', { strand => $strand } );
 
         # Initialize lowers. On the + strand, we don't set the lower bounds
         # unless strict is 0. On the - strand, we don't set the lower bounds if
@@ -653,7 +661,7 @@ sub nonstop {
 
     my @frames;
     foreach my $strand ( $p{strand} == 0 ? ( 1, -1 ) : $p{strand} ) {
-        my $stop = $self->regex( '*', $strand );
+        my $stop = $self->regex( '*', { strand => $strand } );
 
         foreach my $frame ( 0 .. 2 ) {
             my $regex =

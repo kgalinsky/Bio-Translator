@@ -62,7 +62,7 @@ is(
         )
       },
     'FWAHEEQEAHSGREWHA*YQ',
-    'Translate frame -1 with break'
+    'Translate frame -1 with small breaks'
 );
 
 # Gaps
