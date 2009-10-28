@@ -1,5 +1,8 @@
 Revision history for JCVI-Translator
 
+0.4.3   Apr 1 2009
+- Enforced that functions are called using func(@mandatory, %optional)
+
 0.4.2   Apr 1 2009
  - Added find method into utils
 

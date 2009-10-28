@@ -67,7 +67,7 @@ use strict;
 use warnings;
 
 use version;
-our $VERSION = qv('0.4.2');
+our $VERSION = qv('0.4.3');
 
 use base qw(Class::Accessor::Fast);
 __PACKAGE__->mk_accessors(qw(id names _table _starts _reverse));
@@ -106,7 +106,7 @@ our $DEFAULT_SANITIZED = 0;
 
     my $translator = new JCVI::Translator();
     my $translator = new JCVI::Translator( $id );
-    my $translator = new JCVI::Translator( $id, $type );
+    my $translator = new JCVI::Translator( $id, \%params );
 
 This method creates a translator by loading a translation table from the
 internal list. Pass an ID and the type of ID. By default, it will load the
@@ -138,18 +138,18 @@ translation tables.
 By default, the "Standard" translation table will be loaded. You may create a
 translator with this table by calling any of the following:
 
-    my $t = new JCVI::Translator();                     # default table
-    my $t = new JCVI::Translator(1);                    # explicitly set id
-    my $t = new JCVI::Translator( 1, 'id' );            # set id and type
-    my $t = new JCVI::Translator( 'Standard', 'name' ); # set name
-    my $t = new JCVI::Translator( 'SGC0', 'name' );     # alternate name
-    my $t = new JCVI::Translator( 'standard', 'name' ); # not case-sensitive
-    my $t = new JCVI::Translator( 'stan', 'name' );     # partial match ok
+    my $t = new JCVI::Translator();                       # default table
+    my $t = new JCVI::Translator(1);                      # explicitly set id
+    my $t = new JCVI::Translator( 1, { type => 'id' } );  # set id and type
+    my $t = new JCVI::Translator( 'Standard', { type => 'name' } );
+    my $t = new JCVI::Translator( 'SGC0', { type => 'name' } );
+    my $t = new JCVI::Translator( 'standard', { type => 'name' } );
+    my $t = new JCVI::Translator( 'stan', { type => 'name' } );
 
 For partial matches, JCVI::Translator will use the first matching translation
 table.
 
-    my $t = new JCVI::Translator( 'mitochondrial', 'name' );
+    my $t = new JCVI::Translator( 'mitochondrial', { type => 'name' } );
 
 This will use translation table with ID 2, "Vertebrate Mitochondrial," because
 that is the first match (even though "Yeast Mitochondrial" would also match).
@@ -161,19 +161,25 @@ sub new {
 
     my $class = shift;
 
-    my ( $id, $type ) = validate_pos(
+    my ( $id, @p );
+
+    ( $id, $p[0] ) = validate_pos(
         @_,
         { default => $DEFAULT_ID },
-        { default => $DEFAULT_TYPE, regex => qr/id|name/ }
+        { type    => Params::Validate::HASHREF, default => {} }
     );
 
-    TRACE( uc($type) . ': ' . $id );
+    my %p =
+      validate( @p,
+        { type => { default => $DEFAULT_TYPE, regex => qr/id|name/ } } );
+
+    TRACE( uc( $p{type} ) . ': ' . $id );
 
     # Get the beginning DATA so that we can seek back to it
     my $start_pos = tell DATA;
 
     # Set up regular expression for searching.
-    my $match = ( $type eq 'id' ) ? qr/id $id\b/ : qr/name ".*$id.*"/i;
+    my $match = ( $p{type} eq 'id' ) ? qr/id $id\b/ : qr/name ".*$id.*"/i;
 
     # Go through every internal table until it matches on id or name.
     my $found = 0;
@@ -190,17 +196,17 @@ sub new {
     seek DATA, $start_pos, 0;
 
     # Call custom with internal table. Complete is set to 1.
-    return $class->custom( \$_, 1 ) if ($found);
+    return $class->custom( \$_, { complete => 1 } ) if ($found);
 
     # Internal table not matched.
-    ERROR("Table with $type of $id not found");
+    ERROR("Table with $p{type} of $id not found");
     return undef;
 }
 
 =head2 custom()
 
     my $translator = $translator->custom( $table_ref );
-    my $translator = $translator->custom( $table_ref, $complete );
+    my $translator = $translator->custom( $table_ref, \%params );
 
 Create a translator table based off a passed table reference for custom
 translation tables. Loads degenerate nucleotides if $complete isn't set (this
@@ -255,13 +261,19 @@ sub custom {
 
     my $class = shift;
 
-    my ( $table_ref, $complete ) = validate_pos(
+    my ($table_ref, @p);
+
+    ( $table_ref, $p[0] ) = validate_pos(
         @_,
         { type => Params::Validate::SCALARREF },
-        {
+                { type    => Params::Validate::HASHREF, default => {} }
+);
+
+my %p = validate(@p, {
+        complete => {
             default => $DEFAULT_COMPLETE,
             regex   => qr/^[01]$/
-        }
+        }}
     );
 
     # Match the table or return undef.
@@ -333,7 +345,7 @@ sub custom {
     }
 
     # Unroll the translation table unless it has been marked complete
-    $self->bootstrap() unless ($complete);
+    $self->bootstrap() unless ($p{complete});
 
     return $self;
 }
@@ -341,7 +353,7 @@ sub custom {
 # Helper constructor. Instantiates the object with arrayrefs and hashrefs in
 # the right places
 sub _new {
-    my $self  = shift->SUPER::new(
+    my $self = shift->SUPER::new(
         {
             names    => [],
             _table   => [],
@@ -465,16 +477,16 @@ sub bootstrap {
 =head2 table_string
 
     my $table_string_ref = $translator->_table_string();
-    my $table_string_ref = $translator->_table_string( $bootstrap );
+    my $table_string_ref = $translator->_table_string( \%params );
 
-Returns the table string. $bootstrap specifies whether or not this table should
-try to bootstrap itself using the bootstrap function above. By default, it is
-1.
+Returns the table string. %params can specify whether or not this table should
+try to bootstrap itself using the bootstrap function above. By default, it will
+try to.
 
 Examples:
 
     my $table_string_ref = $translator->_table_string();
-    my $table_string_ref = $translator->_table_string(0); # To not bootstrap
+    my $table_string_ref = $translator->_table_string( { bootstrap => 0 } );
 
 =cut
 

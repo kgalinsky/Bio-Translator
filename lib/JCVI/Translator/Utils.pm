@@ -67,7 +67,7 @@ sub _new {
 =head2 codons
 
     my $codon_array = $translator->codons( $residue);
-    my $codon_array = $translator->codons( $residue, $strand );
+    my $codon_array = $translator->codons( $residue, \%params );
 
 Returns a list of codons for a particular residue or start codon. For start
 codons, input "start" for the residue.
@@ -76,22 +76,34 @@ codons, input "start" for the residue.
 
 sub codons {
     my $self = shift;
-    my ( $residue, $strand ) = validate_pos(
+
+    my ( $residue, @p );
+
+    ( $residue, $p[0] ) = validate_pos(
         @_,
         { regex => qr/^(?:$aa_match|start|lower|upper)$/ },
+        { type  => Params::Validate::HASHREF, default => {} }
+    );
+
+    my %p = validate(
+        @p,
         {
-            default => 1,
-            regex   => qr/^[+-]?1$/
+            strand => {
+                default => 1,
+                regex   => qr/^[+-]?1$/
+            }
         }
     );
 
-    if    ( $residue eq 'lower' ) { $residue = $strand == 1  ? 'start' : '*' }
-    elsif ( $residue eq 'upper' ) { $residue = $strand == -1 ? 'start' : '*' }
+    if ( $residue eq 'lower' ) { $residue = $p{strand} == 1 ? 'start' : '*' }
+    elsif ( $residue eq 'upper' ) {
+        $residue = $p{strand} == -1 ? 'start' : '*';
+    }
     elsif ( $residue eq 'start' ) { $residue = 'start' }
     else                          { $residue = uc $residue }
 
     return [
-        @{ $self->_reverse->[ $strand == 1 ? 0 : 1 ]->{$residue} ||= [] } ];
+        @{ $self->_reverse->[ $p{strand} == 1 ? 0 : 1 ]->{$residue} ||= [] } ];
 }
 
 =head2 regex
@@ -114,15 +126,26 @@ stop codon is stored as "*" by the translator.
 
 sub regex {
     my $self = shift;
-    my ( $residue, $strand ) = validate_pos(
-        @_, 1,
+
+    my ( $residue, @p );
+
+    ( $residue, $p[0] ) = validate_pos(
+        @_,
+        { regex => qr/^(?:$aa_match|start|lower|upper)$/ },
+        { type  => Params::Validate::HASHREF, default => {} }
+    );
+
+    my %p = validate(
+        @p,
         {
-            default => 1,
-            regex   => qr/^[+-]?1$/
+            strand => {
+                default => 1,
+                regex   => qr/^[+-]?1$/
+            }
         }
     );
 
-    my $rc = $strand == 1 ? 0 : 1;
+    my $rc = $p{strand} == 1 ? 0 : 1;
 
     my $regex = $self->_regexes->[$rc]->{residue};
 
@@ -174,7 +197,7 @@ sub find {
     while ( $$seq_ref =~ m/(?=$regex)/ig ) {
         push @positions, pos($$seq_ref);
     }
-    
+
     return \@positions;
 }
 
