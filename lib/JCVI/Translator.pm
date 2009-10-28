@@ -50,10 +50,9 @@ to do, but the simple way to do this is:
 
     strand = 3' end <=> 5' end
     lower  = min( 5' end, 3' end ) - 1
-    lower  = max( 5' end, 3' end )
+    upper  = max( 5' end, 3' end )
 
-For logging, it uses Log::Log4Perl. This needs to be
-initialized to work.
+For logging, it uses Log::Log4Perl. This needs to be initialized to work.
 
 For parameter validation, uses Params::Validate. This
 introduces a bit of overhead, however, for scripts that are
@@ -68,7 +67,7 @@ use strict;
 use warnings;
 
 use version;
-our $VERSION = qv('0.4.0');
+our $VERSION = qv('0.4.1');
 
 use base qw(Class::Accessor::Fast);
 __PACKAGE__->mk_accessors(qw(id names _table _starts _reverse));
@@ -137,7 +136,7 @@ translation tables.
     ...
 
 By default, the "Standard" translation table will be loaded. You may create a
-translator with this table by calling any the following:
+translator with this table by calling any of the following:
 
     my $t = new JCVI::Translator();                     # default table
     my $t = new JCVI::Translator(1);                    # explicitly set id
@@ -153,7 +152,7 @@ table.
     my $t = new JCVI::Translator( 'mitochondrial', 'name' );
 
 This will use translation table with ID 2, "Vertebrate Mitochondrial," because
-that is the first match.
+that is the first match (even though "Yeast Mitochondrial" would also match).
 
 =cut
 
@@ -342,8 +341,7 @@ sub custom {
 # Helper constructor. Instantiates the object with arrayrefs and hashrefs in
 # the right places
 sub _new {
-    my $class = shift;
-    my $self  = $class->SUPER::new(
+    my $self  = shift->SUPER::new(
         {
             names    => [],
             _table   => [],
@@ -497,7 +495,7 @@ sub table_string {
     my $names = join( '; ', @{ $self->names } );
 
     my ( $residues, $starts );    # starts/residues string
-    my @base = (undef) x 3;       # this will store the bases for the loop
+    my @base = (undef) x 3;       # this will store the base strings
 
     # Loop over all stored codons. Sort the codons in the translation table and
     # starts table, then use grep to get the unique ones with the help of $prev
@@ -559,8 +557,8 @@ and the translator will skip that step.
 
 sanitized is a flag translator know that this sequence has been stripped of
 whitespace and that all the codons are capitalized. Otherwise, translator will
-do that in order to speed up the translation process
-(see JCVI::DNATools::cleanDNA).
+do that in order to speed up the translation process (see
+JCVI::DNATools::cleanDNA).
 
 To translate the following:
 
@@ -1137,7 +1135,7 @@ sub _translate_codon {
 =head1 MISC
 
 These are the original translation tables. The translation tables used by this
-module have been boostrap - they include translations for degenerate
+module have been boostrapped - they include translations for degenerate
 nucleotides and allow ambiguous amino acids to be the targets of translation
 (e.g. every effort has been made to give a translation that isn't "X").
 

@@ -1,3 +1,8 @@
 Revision history for JCVI-Translator
 
-0.4.0   Major refactor.
+0.4.1   Mar 31 2009
+ - Minor fixes in documentation
+ - Use "my $self = shift->SUPER::new(@_)" in constructors
+
+0.4.0   Mar 18 2009
+ - Major refactor

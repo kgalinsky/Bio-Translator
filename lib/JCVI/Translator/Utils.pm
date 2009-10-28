@@ -54,8 +54,7 @@ our $DEFAULT_SANITIZED = 0;
 =cut
 
 sub _new {
-    my $class = shift;
-    my $self  = $class->SUPER::_new();
+    my $self  = shift->SUPER::_new();
 
     $self->_regexes( [] );
     foreach my $rc ( 0 .. 1 ) {
