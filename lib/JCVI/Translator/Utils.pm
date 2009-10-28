@@ -44,6 +44,8 @@ __PACKAGE__->mk_accessors(qw( _regexes ));
 use Log::Log4perl qw(:easy);
 use Params::Validate;
 
+use JCVI::Translator::Validations qw(:validations :regexes);
+
 use JCVI::DNATools qw( cleanDNA );
 use JCVI::AATools qw( $aa_match );
 
@@ -97,10 +99,8 @@ sub codons {
     TRACE 'entering codons';
     my $self = shift;
 
-    my ( $residue, @p );
-
     # Get the residue and the optional validation hash
-    ( $residue, $p[0] ) = validate_pos(
+    my ( $residue, @p ) = validate_pos(
         @_,
         {
             type  => Params::Validate::SCALAR,
@@ -109,24 +109,13 @@ sub codons {
         { type => Params::Validate::HASHREF, default => {} }
     );
 
-    my %p = validate(
-        @p,
-        {
-
-            # Make sure strand is 1 or -1 and set default
-            strand => {
-                default => $DEFAULT_STRAND,
-                regex   => $STRAND_REGEX,
-                type    => Params::Validate::SCALAR
-            }
-        }
-    );
+    my %p = validate( @p, {%VAL_STRAND} );
 
     # Set the reverse comlement variable
     my $rc = $p{strand} == 1 ? 0 : 1;
 
     # Format start/stop to be '+' and '*' which is how translator stores them
-    if    ( $residue eq 'stop' )  { $residue = '*' } 
+    if    ( $residue eq 'stop' )  { $residue = '*' }
     elsif ( $residue eq 'start' ) { $residue = '+' }
 
     # Lower bound is stop on the - strand, start on the + strand. Upper bound
@@ -173,9 +162,7 @@ sub regex {
     TRACE 'entering regex';
     my $self = shift;
 
-    my ( $residue, @p );
-
-    ( $residue, $p[0] ) = validate_pos(
+    my ( $residue, @p ) = validate_pos(
         @_,
         { type => Params::Validate::SCALAR },
         { type => Params::Validate::HASHREF, default => {} }
@@ -242,13 +229,11 @@ sub find {
     TRACE 'entering find';
     my $self = shift;
 
-    my ( $seq_ref, $residue, @p );
-
-    ( $seq_ref, $residue, $p[0] ) = validate_pos(
+    my ( $seq_ref, $residue, @p ) = validate_pos(
         @_,
-        { type    => Params::Validate::SCALARREF },
-        { type    => Params::Validate::SCALAR },
-        { default => {}, type => Params::Validate::HASHREF }
+        { type => Params::Validate::SCALARREF },
+        { type => Params::Validate::SCALAR },
+        { type => Params::Validate::HASHREF, default => {} }
     );
 
     # Strand is unnecessary for now. Uncomment this section when other options
@@ -266,7 +251,7 @@ sub find {
     #
     #    my $regex = $self->regex( $residue, \%p );
 
-    my $regex = $self->regex( $residue, $p[0] );
+    my $regex = $self->regex( $residue, @p );
 
     # Use a look-ahead in the regular expression. For instance, if the amino
     # acid has the codon AAA, and you have a poly-A region, the match will be
@@ -351,100 +336,52 @@ sub getORF {
 
     my $self = shift;
 
-    my ( $seq_ref, @p );
-    ( $seq_ref, $p[0] ) = validate_pos(
-        @_,
-        { type => Params::Validate::SCALARREF },
-        { type => Params::Validate::HASHREF, default => {} }
-    );
+    my ( $seq_ref, @p ) = validate_seq_params(@_);
 
-    my %p = validate(
-        @p,
-        {
+    my ($sanitized) = validate_sanitized(@p);
+    $seq_ref = cleanDNA($seq_ref) unless ($sanitized);
 
-            # Verify that strand is -1, 0 or 1, set default
-            strand => {
-                default => $DEFAULT_SEARCH_STRAND,
-                regex   => $SEARCH_STRAND_REGEX,
-                type    => Params::Validate::SCALAR
-            },
+    my ( $lower, $upper ) = validate_lower_upper( $seq_ref, @p );
 
-            # Verify that lower is within the sequence, default to 0
-            lower => {
-                default   => 0,
-                regex     => $INTEGER_REGEX,
-                type      => Params::Validate::SCALAR,
-                callbacks => {
-                    'lower >= 0'          => sub { $_[0] >= 0 },
-                    'lower <= seq_length' => sub { $_[0] <= length($$seq_ref) }
-                }
-            },
-
-            # Verify that upper is within the sequence, default to length
-            upper => {
-                default   => length($$seq_ref),
-                regex     => $INTEGER_REGEX,
-                type      => Params::Validate::SCALAR,
-                callbacks => {
-                    'upper >= 0'          => sub { $_[0] >= 0 },
-                    'upper <= seq_length' => sub { $_[0] <= length($$seq_ref) }
-                }
-            },
-
-            # Verify that sanitized is a boolean, set default
-            sanitized => {
-                default => $DEFAULT_SANITIZED,
-                regex   => $BOOLEAN_REGEX,
-                type    => Params::Validate::SCALAR
-            }
-        }
-    );
-
-    # Check if upper >= lower
-    if ( $p{upper} < $p{lower} ) {
-        get_logger()->logcarp("upper $p{upper} < lower $p{lower}");
-        return undef;
-    }
-
-    $seq_ref = cleanDNA($seq_ref) unless ( $p{sanitized} );
+    my %p = validate( @p, {%VAL_SEARCH_STRAND} );
 
     # Initialize the longest ORF.
     my %ORF = (
         strand => 0,
-        lower  => $p{lower},
-        upper  => $p{lower}
+        lower  => $lower,
+        upper  => $lower
     );
 
     # Go through each strand which we are looking in
     foreach my $strand ( $p{strand} == 0 ? ( -1, 1 ) : $p{strand} ) {
 
         # Initialize lower bounds and regular expression for stop
-        my @lowers = map { $_ + $p{lower} } ( 0 .. 2 );
+        my @lowers = map { $_ + $lower } ( 0 .. 2 );
         my $stop_regex = $self->regex( '*', { strand => $strand } );
 
         # Look for all the stops in our sequence using a regular expression. A
         # lookahead is used to cope with the possibility of overlapping stop
         # codons
 
-        pos($$seq_ref) = $p{lower};
+        pos($$seq_ref) = $lower;
 
         while ( $$seq_ref =~ /(?=stop_regex)/gx ) {
 
             # Get the location of the upper bound. Add 3 for the length of the
             # stop codon if we are on the + strand.
-            my $upper = pos($$seq_ref) + ( $strand == 1 ? 3 : 0 );
+            my $cur_upper = pos($$seq_ref) + ( $strand == 1 ? 3 : 0 );
 
             # End the iteration if we are out of range
-            last if ( $upper > $p{upper} );
+            last if ( $cur_upper > $upper );
 
             # Call our helper function
-            $self->_getORF( $strand, \@lowers, $upper, $p{lower}, \%ORF );
+            $self->_getORF( $strand, \@lowers, $cur_upper, $lower, \%ORF );
         }
 
         # Now evaluate for the last three ORFS
         foreach my $i ( 0 .. 2 ) {
-            my $upper = $p{upper} - $i;
-            $self->_getORF( $strand, \@lowers, $upper, $p{lower}, \%ORF );
+            my $cur_upper = $upper - $i;
+            $self->_getORF( $strand, \@lowers, $cur_upper, $lower, \%ORF );
         }
 
         # NOTE: Perl's regular expression engine could be faster than code
@@ -527,68 +464,26 @@ sub getCDS {
 
     my $self = shift;
 
-    my ( $seq_ref, @p );
-    ( $seq_ref, $p[0] ) = validate_pos(
-        @_,
-        { type => Params::Validate::SCALARREF, },
-        { type => Params::Validate::HASHREF, default => {} }
-    );
+    my ( $seq_ref, @p ) = validate_seq_params(@_);
+
+    my $sanitized = validate_sanitized(@p);
+    $seq_ref = cleanDNA($seq_ref) unless ($sanitized);
+
+    my ( $lower, $upper ) = validate_lower_upper( $seq_ref, @p );
 
     my %p = validate(
         @p,
         {
-
-            # Verify that strand is -1, 0 or 1, set default
-            strand => {
-                default => $DEFAULT_SEARCH_STRAND,
-                regex   => $SEARCH_STRAND_REGEX,
-                type    => Params::Validate::SCALAR
-            },
-
-            # Verify that lower is within the sequence, default to 0
-            lower => {
-                default   => 0,
-                regex     => $INTEGER_REGEX,
-                type      => Params::Validate::SCALAR,
-                callbacks => {
-                    'lower >= 0'          => sub { $_[0] >= 0 },
-                    'lower <= seq_length' => sub { $_[0] <= length($$seq_ref) }
-                }
-            },
-
-            # Verify that upper is within the sequence, default to length
-            upper => {
-                default   => length($$seq_ref),
-                regex     => $INTEGER_REGEX,
-                type      => Params::Validate::SCALAR,
-                callbacks => {
-                    'upper >= 0'          => sub { $_[0] >= 0 },
-                    'upper <= seq_length' => sub { $_[0] <= length($$seq_ref) }
-                }
-            },
+            %VAL_SEARCH_STRAND,
 
             # Verify that strict is 0, 1 or 2, default to 1
             strict => {
                 default => 1,
-                regex   => $STRICT_REGEX,
-            },
-
-            # Verify that sanitized is a boolean, set default
-            sanitized => {
-                default => $DEFAULT_SANITIZED,
-                regex   => $BOOLEAN_REGEX,
+                regex   => $REGEX_012,
                 type    => Params::Validate::SCALAR
             }
         }
     );
-
-    # Check if upper >= lower
-    if ( $p{upper} < $p{lower} ) {
-        get_logger()->logcarp("upper $p{upper} < lower $p{lower}");
-        return undef;
-    }
-
-    $seq_ref = cleanDNA($seq_ref) unless ( $p{sanitized} );
 
     # Initialize the longest CDS. Length is -1.
     my %CDS = (
@@ -608,7 +503,7 @@ sub getCDS {
           (      ( ( $strand == 1 ) && ( $p{strict} != 0 ) )
               || ( ( $strand == -1 ) && ( $p{strict} == 2 ) ) )
           ? (undef) x 3
-          : map { $p{lower} + $_ } ( 0 .. 2 );
+          : map { $lower + $_ } ( 0 .. 2 );
 
         # Similar to getORF, rather than using a regular expression to find
         # entire coding regions, instead find individual starts and stops and
@@ -617,11 +512,11 @@ sub getCDS {
         # ($1 vs $2) so that it is easy to tell if a start or a stop was
         # matched.
 
-        pos($$seq_ref) = $p{lower};
+        pos($$seq_ref) = $lower;
 
         while ( $$seq_ref =~ /(?=($lower_regex)|($upper_regex))/g ) {
             my $position = pos $$seq_ref;
-            last if ( $position > $p{upper} );
+            last if ( $position > $upper );
 
             my $frame = $position % 3;
 
@@ -654,10 +549,9 @@ sub getCDS {
 
             else {
                 $position += 3;
-                last if ( $position > $p{upper} );
+                last if ( $position > $upper );
 
-                $self->_getCDS( $strand, \@lowers, $position, $p{lower},
-                    \%CDS );
+                $self->_getCDS( $strand, \@lowers, $position, $lower, \%CDS );
             }
         }
 
@@ -670,8 +564,8 @@ sub getCDS {
             || ( ( $strand == -1 ) && ( $p{strict} != 0 ) ) );
 
         foreach my $i ( 0 .. 2 ) {
-            my $upper = $p{upper} - $i;
-            $self->_getCDS( $strand, \@lowers, $upper, $p{lower}, \%CDS );
+            my $end_upper = $upper - $i;
+            $self->_getCDS( $strand, \@lowers, $end_upper, $lower, \%CDS );
         }
     }
 
@@ -747,34 +641,12 @@ sub nonstop {
 
     my $self = shift;
 
-    my ( $seq_ref, @p );
-    ( $seq_ref, $p[0] ) = validate_pos(
-        @_,
-        { type => Params::Validate::SCALARREF },
-        { type => Params::Validate::HASHREF, default => {} }
-    );
+    my ( $seq_ref, @p ) = validate_seq_params(@_);
 
-    my %p = validate(
-        @p,
-        {
+    my $sanitized = validate_sanitized(@p);
+    $seq_ref = cleanDNA($seq_ref) unless ($sanitized);
 
-            # Verify that strand is -1, 0 or 1, default to 0
-            strand => {
-                default => $DEFAULT_SEARCH_STRAND,
-                regex   => $SEARCH_STRAND_REGEX,
-                type    => Params::Validate::SCALAR
-            },
-
-            # Verify that sanitized is a boolean, set default
-            sanitized => {
-                default => $DEFAULT_SANITIZED,
-                regex   => $BOOLEAN_REGEX,
-                type    => Params::Validate::SCALAR
-            }
-        }
-    );
-
-    $seq_ref = cleanDNA($seq_ref) unless ( $p{sanitized} );
+    my %p = validate( @p, {%VAL_SEARCH_STRAND} );
 
     # Go through both strands
     my @frames;

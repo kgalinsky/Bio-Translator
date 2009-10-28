@@ -1,13 +1,29 @@
+bin/translate_fasta.pl
 Changes
-MANIFEST
-META.yml # Will be created by "make dist"
-Makefile.PL
-README
+Debian_CPANTS.txt
+doc/translator.xmi
 lib/JCVI/Translator.pm
-lib/JCVI/Translator/Utils.pm
-lib/JCVI/Translator/Table.pm
 lib/JCVI/Translator/Base.pm
+lib/JCVI/Translator/Caching.pm
+lib/JCVI/Translator/Table.pm
+lib/JCVI/Translator/Utils.pm
+lib/JCVI/Translator/Validations.pm
+Makefile.PL
+MANIFEST
+META.yml			# Will be created by "make dist"
+README
 t/00-load.t
+t/01-translate.t
+t/02-translate_exons.t
+t/03-translate6.t
+t/04-custom.t
+t/21-codons.t
+t/22-regex.t
+t/23-find.t
+t/24-nonstop.t
+t/25-getORF.t
+t/26-getCDS.t
+t/99-kwalitee.t
 t/boilerplate.t
 t/pod-coverage.t
 t/pod.t

@@ -66,7 +66,7 @@ package JCVI::Translator;
 use strict;
 use warnings;
 
-use version; our $VERSION = qv('0.5.6');
+use version; our $VERSION = qv('0.5.7');
 
 use base qw(Class::Accessor::Fast);
 __PACKAGE__->mk_accessors(qw(table base));
@@ -77,29 +77,9 @@ use Params::Validate;
 
 use JCVI::Translator::Table;
 use JCVI::Translator::Base;
+use JCVI::Translator::Validations qw(:validations);
 
-use JCVI::DNATools qw(
-  %degenerate_map
-  $degen_match
-  @nucs
-  $nuc_match
-  cleanDNA
-  reverse_complement
-);
-
-use JCVI::AATools qw(
-  %ambiguous_forward
-  $aa_match
-);
-
-# Defaults. Used by the validation functions.
-our $DEFAULT_ID        = 1;
-our $DEFAULT_TYPE      = 'id';
-our $DEFAULT_COMPLETE  = 0;
-our $DEFAULT_BOOTSTRAP = 1;
-our $DEFAULT_STRAND    = 1;
-our $DEFAULT_PARTIAL   = 0;
-our $DEFAULT_SANITIZED = 0;
+use JCVI::DNATools qw( $nuc_match cleanDNA );
 
 =head1 CONSTRUCTORS
 
@@ -249,102 +229,33 @@ sub translate {
 
     my $self = shift;
 
-    my ( $seq_ref, @p );
-    ( $seq_ref, $p[0] ) = validate_pos(
-        @_,
-        { type => Params::Validate::SCALARREF, },
-        { type => Params::Validate::HASHREF, default => {} }
-    );
+    my ( $seq_ref, @p ) = validate_seq_params(@_);
 
     # Check the sanitized value separately
-    my $sanitized = _is_sanitized(@p);
+    my $sanitized = validate_sanitized(@p);
 
     # Clean the sequence and cache it
     $seq_ref = cleanDNA($seq_ref) unless ($sanitized);
     $self->base->set_seq($seq_ref);
 
-    my %p = validate(
-        @p,
-        {
+    # Get lower and upper bounds
+    my ( $lower, $upper ) = validate_lower_upper( $seq_ref, @p );
 
-            # Make sure strand is 1 or -1
-            strand => {
-                default => $DEFAULT_STRAND,
-                regex   => qr/^[+-]?1$/,
-                type    => Params::Validate::SCALAR
-            },
-
-            # Make sure lower is an integer within the sequence
-            lower => {
-                default   => 0,
-                regex     => qr/^\d+$/,
-                type      => Params::Validate::SCALAR,
-                callbacks => {
-                    'lower >= 0'          => sub { $_[0] >= 0 },
-                    'lower <= seq_length' => sub { $_[0] <= length($$seq_ref) }
-                }
-            },
-
-            # Make sure upper is an integer within the sequence
-            upper => {
-                default   => length($$seq_ref),
-                regex     => qr/^[0-9]+$/,
-                type      => Params::Validate::SCALAR,
-                callbacks => {
-                    'upper >= 0'          => sub { $_[0] >= 0 },
-                    'upper <= seq_length' => sub { $_[0] <= length($$seq_ref) }
-                }
-            },
-
-            # Make sure the offset is 0, 1 or 2.
-            offset => {
-                default => 0,
-                regex   => qr/^[012]$/,
-                type    => Params::Validate::SCALAR
-            },
-
-            # Make sure they are boolean values
-            partial => {
-                default => $DEFAULT_PARTIAL,
-                regex   => qr/^[01]$/,
-                type    => Params::Validate::SCALAR
-            }
-        }
-    );
-
-    # Die if upper < lower
-    if ( $p{upper} < $p{lower} ) {
-        FATAL "Upper $p{upper} < Lower $p{lower}";
-        croak "Upper $p{upper} < Lower $p{lower}";
-    }
+    my %p = validate( @p, { %VAL_STRAND, %VAL_PARTIAL, %VAL_OFFSET } );
 
     # Return undef if the offset is bigger than the space between bounds
-    return undef if ( $p{upper} <= $p{lower} + $p{offset} );
+    return undef if ( $upper <= $lower + $p{offset} );
 
     # Set the partial status
     $self->base->set_partial( $p{partial} );
 
     # Prepare for translation
     $self->base->prepare( $p{strand}, $self->table );
-    $self->base->endpoints( @p{qw(lower upper offset)} );
+    $self->base->endpoints( $lower, $upper, $p{offset} );
 
     # Translate and convert the resulting arrayref to a string
     my $peptide = join( '', @{ $self->base->translate() } );
     return \$peptide;
-}
-
-sub _is_sanitized {
-    my ($p) = @_;
-
-    my $sanitized = $DEFAULT_SANITIZED;
-    if ( exists $p->{sanitized} ) {
-        $sanitized = $p->{sanitized};
-        croak qq{Invalid value for sanitized "$sanitized" (must be 0 or 1) }
-          unless ( $sanitized =~ m/^[01]$/ );
-        delete $p->{sanitized};
-    }
-
-    return $sanitized;
 }
 
 =head2 translate6
@@ -392,55 +303,19 @@ sub translate6 {
 
     my $self = shift;
 
-    my ( $seq_ref, @p );
-    ( $seq_ref, $p[0] ) = validate_pos(
-        @_,
-        { type => Params::Validate::SCALARREF },
-        { type => Params::Validate::HASHREF, default => {} }
-    );
+    my ( $seq_ref, @p ) = validate_seq_params(@_);
 
     # Check the sanitized value separately
-    my $sanitized = _is_sanitized(@p);
+    my $sanitized = validate_sanitized(@p);
 
     # Clean the sequence and cache it
     $seq_ref = cleanDNA($seq_ref) unless ($sanitized);
     $self->base->set_seq($seq_ref);
 
+    # Get lower and upper bounds
+    my @lu = validate_lower_upper( $seq_ref, @p );
 
-    my %p = validate(
-        @p,
-        {
-
-            # Make sure lower is an integer within the sequence
-            lower => {
-                default   => 0,
-                regex     => qr/^\d+$/,
-                type      => Params::Validate::SCALAR,
-                callbacks => {
-                    'lower >= 0'          => sub { $_[0] >= 0 },
-                    'lower <= seq_length' => sub { $_[0] <= length($$seq_ref) }
-                }
-            },
-
-            # Make sure upper is an integer within the sequence
-            upper => {
-                default   => length($$seq_ref),
-                regex     => qr/^\d+$/,
-                type      => Params::Validate::SCALAR,
-                callbacks => {
-                    'upper >= 0'          => sub { $_[0] >= 0 },
-                    'upper <= seq_length' => sub { $_[0] <= length($$seq_ref) }
-                }
-            },
-
-            # Make sure they are boolean values
-            partial => {
-                default => $DEFAULT_PARTIAL,
-                regex   => qr/^[01]$/,
-                type    => Params::Validate::SCALAR
-            }
-        }
-    );
+    my %p = validate( @p, {%VAL_PARTIAL} );
 
     $self->base->set_partial( $p{partial} );
 
@@ -454,7 +329,7 @@ sub translate6 {
         foreach my $offset ( 0 .. 2 ) {
 
             # Calculate endpoints and translate
-            $self->base->endpoints( @p{qw(lower upper)}, $offset );
+            $self->base->endpoints( @lu, $offset );
 
             # Translate and push onto array
             push @peptides, join( '', @{ $self->base->translate() } );
@@ -498,49 +373,20 @@ sub translate_exons {
 
     my $self = shift;
 
-    my ( $seq_ref, $exons, @p );
-    ( $seq_ref, $exons, $p[0] ) = validate_pos(
-        @_,
-        { type => Params::Validate::SCALARREF },
-        { type => Params::Validate::ARRAYREF },
-        { type => Params::Validate::HASHREF, default => {} }
-    );
+    my ( $seq_ref, $exons, @p ) = validate_seq_exons_params(@_);
 
     # Check the sanitized value separately
-    my $sanitized = _is_sanitized(@p);
+    my $sanitized = validate_sanitized(@p);
 
     # Clean the sequence and cache it
     $seq_ref = cleanDNA($seq_ref) unless ($sanitized);
     $self->base->set_seq($seq_ref);
 
     # Validate optional arguments
-    my %p = validate(
-        @p,
-        {
-
-            # strand must be 1 or -1
-            strand => {
-                default => $DEFAULT_STRAND,
-                regex   => qr/^[+-]?1$/,
-                type    => Params::Validate::SCALAR
-            },
-
-            # Make sure they are boolean values
-            partial => {
-                default => $DEFAULT_PARTIAL,
-                regex   => qr/^[01]$/,
-                type    => Params::Validate::SCALAR
-            },
-            sanitized => {
-                default => $DEFAULT_SANITIZED,
-                regex   => qr/^[01]$/,
-                type    => Params::Validate::SCALAR
-            }
-        }
-    );
+    my %p = validate( @p, { %VAL_STRAND, %VAL_PARTIAL, %VAL_SANITIZED } );
 
     # Validate the exons and sort in the proper order for translation
-    $self->_validate_exons( $exons, $seq_ref );
+    validate_exons( $seq_ref, $exons );
     my @exons = sort {
         ( ( $a->[0] <=> $b->[0] ) || ( $a->[1] <=> $b->[1] ) ) * $p{strand}
     } @$exons;
@@ -563,39 +409,6 @@ sub translate_exons {
     my $peptide = join( '', map { @$_ } @peptides );
 
     return \$peptide;
-}
-
-# Validate the exons
-sub _validate_exons {
-    my $self = shift;
-    my ( $exons, $seq_ref ) = @_;
-
-    foreach my $exon (@$exons) {
-        my ( $lower, $upper ) = @$exon;
-
-        # Make sure upper and lower bounds are integers
-        if ( $lower !~ m/^\d+$/ ) {
-            FATAL "Lower $lower not an integer";
-            croak "Lower $lower not an integer";
-        }
-
-        if ( $upper !~ m/^\d+$/ ) {
-            FATAL "Upper $upper not an integer";
-            croak "Upper $upper not an integer";
-        }
-
-        # Make sure upper >= lower
-        if ( $upper < $lower ) {
-            FATAL "Upper $upper < Lower $lower";
-            croak "Upper $upper < Lower $lower";
-        }
-
-        # Make sure upper is within the sequence
-        if ( $upper > length($$seq_ref) ) {
-            FATAL "Upper $upper not in the sequence";
-            croak "Upper $upper not in the sequence";
-        }
-    }
 }
 
 =head2 translate_codon
@@ -621,9 +434,7 @@ sub translate_codon {
 
     my $self = shift;
 
-    my ( $codon, @p );
-
-    ( $codon, $p[0] ) = validate_pos(
+    my ( $codon, @p ) = validate_pos(
         @_,
         { regex => qr/^${nuc_match}{3}$/ },
         { type  => Params::Validate::HASHREF, default => {} }
