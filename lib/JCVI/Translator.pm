@@ -67,7 +67,7 @@ use strict;
 use warnings;
 
 use version;
-our $VERSION = qv('0.5.0');
+our $VERSION = qv('0.5.1');
 
 use base qw(Class::Accessor::Fast);
 __PACKAGE__->mk_accessors(qw(table base));
@@ -618,14 +618,12 @@ sub translate_codon {
     my %p = validate(
         @p,
         {
-
             # Make sure strand is 1 or -1
             strand => {
                 default => 1,
                 regex   => qr/^[+-]?1$/,
                 type    => Params::Validate::SCALAR
             },
-
             # Make sure it is a boolean value
             start => {
                 default => 0,
@@ -636,8 +634,11 @@ sub translate_codon {
     );
 
     $codon = uc $codon;
-    my $rc = $p{strand} == 1 ? 0 : 1;
 
+    # Set up the translation table given the strand and whether this is
+    # searching for stop codons. Set up the not_found string by whether this
+    # is a start or not.
+    my $rc = $p{strand} == 1 ? 0 : 1;
     my ( $table, $not_found );
     unless ( $p{start} ) {
         $table     = $self->table->_forward->[$rc];

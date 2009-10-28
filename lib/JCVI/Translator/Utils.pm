@@ -19,6 +19,7 @@ JCVI::Translator::Utils - Utilities that requrie a translation table
 
     my $codons = $utils->codons( $residue );
     my $regex  = $utils->regex( $residue );
+    my $indices = $utils->find( $residue );
 
     my $orf = $utils->getORF( $seq_ref );
     my $cds = $utils->getCDS( $seq_ref );
@@ -27,8 +28,8 @@ JCVI::Translator::Utils - Utilities that requrie a translation table
 
 =head1 DESCRIPTION
 
-See Translator for more info. Utils extends Translator and
-adds a few more functions that are normally not used.
+See JCVI::Translator for more info. Utils contains utilites that require
+knowledge of the translation table.
 
 =cut
 
@@ -46,12 +47,13 @@ use Params::Validate;
 use JCVI::DNATools qw( cleanDNA );
 use JCVI::AATools qw( $aa_match );
 
-our $DEFAULT_STRAND    = 0;
-our $DEFAULT_SANITIZED = 0;
+our $DEFAULT_STRAND        = 1;
+our $DEFAULT_SEARCH_STRAND = 0;
+our $DEFAULT_SANITIZED     = 0;
 
 sub _new {
     my $self = shift->SUPER::_new(@_);
-    $self->_regexes([ {}, {} ]);
+    $self->_regexes( [ {}, {} ] );
     return $self;
 }
 
@@ -65,29 +67,39 @@ sub _new {
     my $codon_array = $translator->codons( $residue, \%params );
 
 Returns a list of codons for a particular residue or start codon. For start
-codons, input "start" for the residue.
+codons, input "start" for the residue. Valid options for the params
+hash are:
+
+    strand:     1 or -1; default = 1
 
 =cut
 
 sub codons {
+    TRACE 'entering codons';
     my $self = shift;
 
     my ( $residue, @p );
 
+    # Get the residue and the optional validation hash
     ( $residue, $p[0] ) = validate_pos(
         @_,
-        { regex => qr/^(?:$aa_match|start|lower|upper)$/ },
-        { type  => Params::Validate::HASHREF, default => {} }
+        {
+            type  => Params::Validate::SCALAR,
+            regex => qr/^(?:$aa_match|start|lower|upper)$/
+        },
+        { type => Params::Validate::HASHREF, default => {} }
     );
 
-    # Make sure strand is 1 or -1
     my %p = validate(
         @p,
         {
+            # Make sure strand is 1 or -1 and set default
             strand => {
-                default => 1,
-                regex   => qr/^[+-]?1$/
+                default => $DEFAULT_STRAND,
+                regex   => qr/^[+-]?1$/,
+                type    => Params::Validate::SCALAR
             }
+
         }
     );
 
@@ -104,20 +116,21 @@ sub codons {
     elsif ( $residue eq 'start' ) { }
 
     # Capitalize all other residues
-    else                          { $residue = uc $residue }
+    else { $residue = uc $residue }
 
     # Get the codons array or set it to the empty array
     my $codons = $self->table->_reverse->[$rc]->{$residue} || [];
 
     # Return a copy of the arrayref so that the internal array can't get
     # modified
+    TRACE 'leaving codons';
     return [@$codons];
 }
 
 =head2 regex
 
     my $regex = $translator->regex( $residue );
-    my $regex = $translator->regex( $residue, $strand );
+    my $regex = $translator->regex( $residue, \%params );
 
 Returns a regular expression matching codons for a particular amino acid
 residue. In addition, three special values are allowed:
@@ -128,41 +141,57 @@ residue. In addition, three special values are allowed:
 
 lower and upper match the respective ends of a CDS for a given strand (i.e. on
 the positive strand, lower matches the start, and upper matches the stop). The
-stop codon is stored as "*" by the translator.
+stop codon is stored as "*" by the translator. Valid options for the params
+hash are:
+
+    strand:     1 or -1; default = 1
 
 =cut
 
 sub regex {
+    TRACE 'entering regex';
     my $self = shift;
 
     my ( $residue, @p );
 
     ( $residue, $p[0] ) = validate_pos(
         @_,
-        { regex => qr/^(?:$aa_match|start|lower|upper)$/ },
+        {
+            type  => Params::Validate::SCALAR,
+            regex => qr/^(?:$aa_match|start|lower|upper)$/
+        },
         { type => Params::Validate::HASHREF, default => {} }
     );
 
     my %p = validate(
         @p,
         {
+            # Make sure strand is 1 or -1 and set default
             strand => {
-                default => 1,
-                regex   => qr/^[+-]?1$/
+                default => $DEFAULT_STRAND,
+                regex   => qr/^[+-]?1$/,
+                type    => Params::Validate::SCALAR
             }
         }
     );
 
+    # Get the index for the regex array
     my $rc = $p{strand} == 1 ? 0 : 1;
 
-    my $regex = $self->_regexes->[$rc]->{residue};
+    # Get the regex, and if it is defined, return it
+    my $regex = $self->_regexes->[$rc]->{$residue};
+    if ( defined $regex ) {
+        TRACE 'regular expression defined, leaving regex';
+        return $regex;
+    }
 
-    return $regex if ( defined $regex );
-
+    # If the regex wasn't defined, build it by calling codons
     $regex = join '|', @{ $self->codons(@_) };
     $regex = qr/$regex/;
 
-    $self->_regexes->[$rc]->{residue} = $regex;
+    # Cache the regex and return it
+    $self->_regexes->[$rc]->{$residue} = $regex;
+    TRACE 'caching regular expression, leaving regex';
     return $regex;
 }
 
@@ -179,6 +208,7 @@ hash are:
 =cut
 
 sub find {
+    TRACE 'entering find';
     my $self = shift;
 
     my ( $seq_ref, $residue, @p );
@@ -192,20 +222,21 @@ sub find {
         @p,
         {
             strand => {
-                default => 1,
+                default => $DEFAULT_STRAND,
                 regex   => qr/^[+-]?1$/,
                 type    => Params::Validate::SCALAR
             }
         }
     );
 
-    my $regex = $self->regex( $residue, $p{strand} );
+    my $regex = $self->regex( $residue, \%p );
 
     my @positions;
     while ( $$seq_ref =~ m/(?=$regex)/ig ) {
         push @positions, pos($$seq_ref);
     }
 
+    TRACE 'leaving find';
     return \@positions;
 }
 
@@ -215,7 +246,7 @@ sub find {
     my $orf_hash = $translator->getORF( $seq_ref, \%params );
 
 This will get the longest region between stops and return the strand, lower and
-upper bounds, inclusive. The parameters are:
+upper bounds, inclusive. Valid options for the params hash are:
 
     strand:     0, 1 or -1; default = 0 (meaning search both strands)
     lower:      integer between 0 and length; default = 0
@@ -278,7 +309,7 @@ Example:
 =cut
 
 sub getORF {
-    TRACE('getORF called');
+    TRACE 'entering getORF';
 
     my $self = shift;
 
@@ -292,11 +323,15 @@ sub getORF {
     my %p = validate(
         @p,
         {
+
+            # Verify that strand is -1, 0 or 1, set default
             strand => {
-                default => 0,
+                default => $DEFAULT_SEARCH_STRAND,
                 regex   => qr/^[+-]?[01]$/,
                 type    => Params::Validate::SCALAR
             },
+
+            # Verify that lower is within the sequence, default to 0
             lower => {
                 default   => 0,
                 regex     => qr/^[0-9]+$/,
@@ -306,6 +341,8 @@ sub getORF {
                     'lower <= seq_length' => sub { $_[0] <= length($$seq_ref) }
                 }
             },
+
+            # Verify that upper is within the sequence, default to length
             upper => {
                 default   => length($$seq_ref),
                 regex     => qr/^[0-9]+$/,
@@ -315,11 +352,21 @@ sub getORF {
                     'upper <= seq_length' => sub { $_[0] <= length($$seq_ref) }
                 }
             },
-            sanitized => { default => $DEFAULT_SANITIZED }
+
+            # Verify that sanitized is a boolean, set default
+            sanitized => {
+                default => $DEFAULT_SANITIZED,
+                regex   => qr/^[01]$/,
+                type    => Params::Validate::SCALAR
+            }
         }
     );
 
-    return undef if ( $p{upper} < $p{lower} );
+    # Check if upper >= lower
+    if ( $p{upper} < $p{lower} ) {
+        get_logger()->logcarp("upper $p{upper} < lower $p{lower}");
+        return undef;
+    }
 
     $seq_ref = cleanDNA($seq_ref) unless ( $p{sanitized} );
 
@@ -413,9 +460,11 @@ Will return:
         upper  => 9
     }
 
-It takes the following parameters:
+Valid options for the params hash are:
 
     strand:     0, 1 or -1; default = 0 (meaning search both strands)
+    lower:      integer between 0 and length; default = 0
+    upper:      integer between 0 and length; default = length
     strict:     0, 1 or 2;  default = 1
     sanitized:  0 or 1; default = 0
 
@@ -450,10 +499,15 @@ sub getCDS {
     my %p = validate(
         @p,
         {
+
+            # Verify that strand is -1, 0 or 1, set default
             strand => {
-                default => 0,
-                regex   => qr/^[+-]?1$/,
+                default => $DEFAULT_SEARCH_STRAND,
+                regex   => qr/^[+-]?[01]$/,
+                type    => Params::Validate::SCALAR
             },
+
+            # Verify that lower is within the sequence, default to 0
             lower => {
                 default   => 0,
                 regex     => qr/^[0-9]+$/,
@@ -463,6 +517,8 @@ sub getCDS {
                     'lower <= seq_length' => sub { $_[0] <= length($$seq_ref) }
                 }
             },
+
+            # Verify that upper is within the sequence, default to length
             upper => {
                 default   => length($$seq_ref),
                 regex     => qr/^[0-9]+$/,
@@ -472,20 +528,32 @@ sub getCDS {
                     'upper <= seq_length' => sub { $_[0] <= length($$seq_ref) }
                 }
             },
+
+            # Verify that strict is 0, 1 or 2, default to 1
             strict => {
                 default => 1,
                 regex   => qr/^[012]$/,
 
             },
-            sanitized => { default => $DEFAULT_SANITIZED }
+
+            # Verify that sanitized is a boolean, set default
+            sanitized => {
+                default => $DEFAULT_SANITIZED,
+                regex   => qr/^[01]$/,
+                type    => Params::Validate::SCALAR
+            }
         }
     );
 
-    return undef if ( $p{upper} < $p{lower} );
+    # Check if upper >= lower
+    if ( $p{upper} < $p{lower} ) {
+        get_logger()->logcarp("upper $p{upper} < lower $p{lower}");
+        return undef;
+    }
 
     $seq_ref = cleanDNA($seq_ref) unless ( $p{sanitized} );
 
-    # Initialize the longest ORF. Length is -1.
+    # Initialize the longest CDS. Length is -1.
     my %CDS = (
         strand => 0,
         lower  => 0,
@@ -573,7 +641,7 @@ sub getCDS {
     return \%CDS;
 }
 
-# Helper function for getORF above.
+# Helper function for getCDS above.
 sub _getCDS {
     my $self = shift;
     my ( $strand, $lowers, $upper, $offset, $longest ) = @_;
@@ -613,8 +681,7 @@ sub _compare_regions {
     my $frames = $translator->nonstop( $seq_ref );
     my $frames = $translator->nonstop( $seq_ref, \%params );
 
-Returns the frames that contain no stop codons for the sequence. Valid
-parameters are strand and sanitized. strand is defaults to 0. Frames are
+Returns the frames that contain no stop codons for the sequence. Frames are
 numbered -3, -2, -1, 1, 2 and 3.
 
      3   ---->
@@ -624,6 +691,11 @@ numbered -3, -2, -1, 1, 2 and 3.
     -1 <------
     -2 <-----
     -3 <----
+
+Valid options for the params hash are:
+
+    strand:     0, 1 or -1; default = 0 (meaning search both strands)
+    sanitized:  0 or 1; default = 0
 
 Example:
 
@@ -648,27 +720,38 @@ sub nonstop {
     my %p = validate(
         @p,
         {
+
+            # Verify that strand is -1, 0 or 1, default to 0
             strand => {
-                default => 0,
+                default => $DEFAULT_SEARCH_STRAND,
                 regex   => qr/^[+-]?[01]$/,
                 type    => Params::Validate::SCALAR
             },
-            sanitized => { default => $DEFAULT_SANITIZED }
+
+            # Verify that sanitized is a boolean, set default
+            sanitized => {
+                default => $DEFAULT_SANITIZED,
+                regex   => qr/^[01]$/,
+                type    => Params::Validate::SCALAR
+            }
         }
     );
 
     $seq_ref = cleanDNA($seq_ref) unless ( $p{sanitized} );
 
+    # Go through both strands
     my @frames;
     foreach my $strand ( $p{strand} == 0 ? ( 1, -1 ) : $p{strand} ) {
         my $stop = $self->regex( '*', { strand => $strand } );
 
+        # Go through each frame
         foreach my $frame ( 0 .. 2 ) {
             my $regex =
               $strand == 1
               ? qr/^.{$frame}(?:.{3})*$stop/
               : qr/$stop(?:.{3})*.{$frame}$/;
 
+            # Convert strand = +/-1, frame = [0,1,2] into 1 value +/-[1,2,3]
             push @frames, ( $frame + 1 ) * $strand
               unless ( $$seq_ref =~ m/$regex/ );
         }

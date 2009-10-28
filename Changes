@@ -1,5 +1,10 @@
 Revision history for JCVI-Translator
 
+0.5.1   Apr 13 2009
+ - Better documentation in Utils
+ - Fixed bugs in JCVI::Translator::Utils::regex and find
+ - Fixed load test and added new tests
+
 0.5.0   Apr 2 2009
  - Split out the table into its own package
  - Split out helper translator functions into their own package
