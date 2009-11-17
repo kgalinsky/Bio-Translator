@@ -229,9 +229,9 @@ Examples:
 
 # Regular expression which should match translation tables and also extracts
 # relevant information.
-our $TABLE_REGEX = qr/
+my $TABLE_REGEX = qr/
                         ( (?:name\s+".+?".*?) + )
-                        id\s+(\d+).*
+                        (?:id\s+(\d+).*)?
                         ncbieaa\s+"([a-z*]+)".*
                         sncbieaa\s+"([a-z-]+)".*
                         base1\s+([a-z]+).*
@@ -598,7 +598,7 @@ sub string2 {
     my $codon2aa    = $self->_codon2aa->[0];
     my $codon2start = $self->_codon2start->[0];
 
-    my %codons = map( { $_ => undef } keys(%$codon2aa), keys(%$codon2start) );
+
 
     my %groups;
 
