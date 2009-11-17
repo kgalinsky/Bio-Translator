@@ -469,11 +469,11 @@ sub translate_codon {
     my $rc = $p{strand} == 1 ? 0 : 1;
     my ( $table, $not_found );
     unless ( $p{start} ) {
-        $table     = $self->table->_forward->[$rc];
+        $table     = $self->table->_codon2aa->[$rc];
         $not_found = 'X';
     }
     else {
-        $table     = $self->table->_starts->[$rc];
+        $table     = $self->table->_codon2start->[$rc];
         $not_found = '-';
     }
 

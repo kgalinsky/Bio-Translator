@@ -103,8 +103,8 @@ sub prepare {
     $self->{rc}        = $rc;
 
     # The translation tables are keyed on $rc in JCVI::Translator::Table
-    $self->{table}  = $table->_forward->[$rc];
-    $self->{starts} = $table->_starts->[$rc];
+    $self->{table}  = $table->_codon2aa->[$rc];
+    $self->{starts} = $table->_codon2start->[$rc];
 }
 
 =head2 endpoints
@@ -114,10 +114,10 @@ equal to the stop endpoint. For this to work, the stop must be in the same
 frame as the start. For the + strand, adjust the upper bound so that it is in
 phase with lower bound and offset.
 
-The - strand is trickier. Not only adjust is the lower bound adjusted to be in
-phase with the lower bound and offset, but 3 is also subtracted from the
-bounds so that the right index for substring is present. Codons are indexed on
-their lower bound, so 3 is subtracted to get from the upper end to the lower.
+The - strand is trickier. Not only is the lower bound adjusted to be in phase
+with the lower bound and offset, but 3 is also subtracted from the bounds so
+that the right index for substring is present. Codons are indexed on their
+lower bound, so 3 is subtracted to get from the upper end to the lower.
 
 Below is an example that might make sense of this. Suppose we are interested in
 translating the sequence "CAGTTTAACAAGTCGAAACCGTTC" between positions 4 and 20:

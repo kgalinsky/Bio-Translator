@@ -31,15 +31,14 @@ use strict;
 use warnings;
 
 use base qw(Class::Accessor::Fast);
-__PACKAGE__->mk_accessors(qw(id names _forward _starts _reverse));
+__PACKAGE__->mk_accessors(qw(id names _codon2aa _codon2start _aa2codons));
 
 use Log::Log4perl qw(:easy);
 use Params::Validate;
 
-#use JCVI::Translator::_TablePair;
-
 use JCVI::DNATools qw(
   %degenerate_map
+  %degenerate_hierarchy
   $degen_match
   @nucs
   $nuc_match
@@ -60,10 +59,10 @@ our $DEFAULT_BOOTSTRAP = 1;
 sub _new {
     shift->SUPER::new(
         {
-            names    => [],
-            _forward => JCVI::Translator::_TablePair->new(),
-            _starts  => JCVI::Translator::_TablePair->new(),
-            _reverse => JCVI::Translator::_TablePair->new()
+            names        => [],
+            _codon2aa    => JCVI::Translator::Table::Pair->new(),
+            _codon2start => JCVI::Translator::Table::Pair->new(),
+            _aa2codons   => JCVI::Translator::Table::Pair->new()
         }
     );
 }
@@ -270,9 +269,7 @@ sub custom {
     my $id       = $2;
     my $residues = $3;
     my $starts   = $4;
-    my $base1    = $5;
-    my $base2    = $6;
-    my $base3    = $7;
+    my @bases    = ( $5, $6, $7 );
 
     my $self = $class->_new();
 
@@ -292,27 +289,55 @@ sub custom {
     }
 
     # Get all the table pairs so we don't have to keep using accessors
-    my $forward_table = $self->_forward;
-    my $starts_table  = $self->_starts;
-    my $reverse_table = $self->_reverse;
+    my $codon2aa    = $self->_codon2aa;
+    my $codon2start = $self->_codon2start;
+    my $aa2codons   = $self->_aa2codons;
 
     # Chop is used to efficiently get the last character from each string
     while ( my $residue = uc( chop $residues ) ) {
         my $start = uc( chop $starts );
-        my $codon = uc( chop($base1) . chop($base2) . chop($base3) );
 
-        my $reverse = ${ reverse_complement( \$codon ) };
+        my @nucleotides;
+        foreach my $i ( 0 .. 2 ) {
 
-        # If the residue is valid, store it
-        if ( $residue ne 'X' ) {
-            $forward_table->store( $residue, $codon, $reverse );
-            $reverse_table->push( $residue, $codon, $reverse );
+            # Get the base
+            my $base = chop( $bases[$i] );
+            $nucleotides[$i][0] = $base;
+
+            # If the base is a degenerate
+            if ( $base =~ m/$degen_match/ ) {
+
+                # Store the nucleotides it can be
+                push @{ $nucleotides[$i] }, @{ $degenerate_map{$base} };
+
+                # Store the other degenerates it can be
+                if ( my $hierarchy = $degenerate_hierarchy{$base} ) {
+                    push @{ $nucleotides[$i] }, @$hierarchy;
+                }
+            }
         }
 
-        # If the start is valid, store it
-        if ( ( $start ne '-' ) ) {
-            $starts_table->store( $start, $codon, $reverse );
-            $reverse_table->push( '+', $codon, $reverse );
+        # Add each potential codon to the translation table
+        foreach my $base1 ( @{ $nucleotides[0] } ) {
+            foreach my $base2 ( @{ $nucleotides[1] } ) {
+                foreach my $base3 ( @{ $nucleotides[2] } ) {
+                    my $codon = join( '', $base1, $base2, $base3 );
+
+                    my $reverse = ${ reverse_complement( \$codon ) };
+
+                    # If the residue is valid, store it
+                    if ( $residue ne 'X' ) {
+                        $codon2aa->store( $residue, $codon, $reverse );
+                        $aa2codons->push( $residue, $codon, $reverse );
+                    }
+
+                    # If the start is valid, store it
+                    if ( ( $start ne '-' ) ) {
+                        $codon2start->store( $start, $codon, $reverse );
+                        $aa2codons->push( '+', $codon, $reverse );
+                    }
+                }
+            }
         }
     }
 
@@ -385,14 +410,14 @@ sub add_translation {
     }
 
     # Store residue in the starts or regular translation table.
-    my $table = $p{start} ? '_starts' : '_forward';
+    my $table = $p{start} ? '_codon2start' : '_codon2aa';
     $table = $self->$table;
 
     $table->store( $residue, $$codon_ref, $$rc_codon_ref );
 
     # Store the reverse lookup
     $residue = '+' if ( $p{start} );
-    $self->_reverse->push( $residue, $$codon_ref, $$rc_codon_ref );
+    $self->_aa2codons->push( $residue, $$codon_ref, $$rc_codon_ref );
 }
 
 =head2 bootstrap
@@ -414,10 +439,10 @@ sub bootstrap {
     foreach my $n1 (@nucs) {
         foreach my $n2 (@nucs) {
             foreach my $n3 (@nucs) {
-                $self->_unroll( $n1 . $n2 . $n3, $self->_forward->[0] );
+                $self->_unroll( $n1 . $n2 . $n3, $self->_codon2aa->[0] );
                 $self->_unroll(
                     $n1 . $n2 . $n3,
-                    $self->_starts->[0],
+                    $self->_codon2start->[0],
                     { start => 1 }
                 );
             }
@@ -530,13 +555,13 @@ sub string {
     foreach my $codon (
         grep ( ( $_ ne $prev ) && ( $prev = $_ ),
             sort { $a cmp $b } (
-                keys( %{ $self->_forward->[0] } ),
-                keys( %{ $self->_starts->[0] } )
+                keys( %{ $self->_codon2aa->[0] } ),
+                keys( %{ $self->_codon2start->[0] } )
               ) )
       )
     {
-        $residues .= $self->_forward->[0]->{$codon} || 'X';
-        $starts   .= $self->_starts->[0]->{$codon}  || '-';
+        $residues .= $self->_codon2aa->[0]->{$codon}    || 'X';
+        $starts   .= $self->_codon2start->[0]->{$codon} || '-';
 
         # Chop up the codon because the bases are stored on separate lines
         $base[ -$_ ] .= chop $codon foreach ( 1 .. 3 );
@@ -556,7 +581,8 @@ sub string {
 }
 
 {
-    package JCVI::Translator::_TablePair;
+
+    package JCVI::Translator::Table::Pair;
 
     use strict;
     use warnings;
@@ -568,6 +594,9 @@ sub string {
         my $self = [ {}, {} ];
         bless $self, $class;
     }
+
+    sub forward { return $_[0][0] }
+    sub reverse { return $_[0][1] }
 
     sub store {
         my ( $self, $residue, $codon, $reverse ) = @_;
@@ -588,6 +617,11 @@ sub string {
 
         push @{ $self->[0]->{$residue} }, $codon;
         push @{ $self->[1]->{$residue} }, $reverse;
+
+        foreach my $i ( 0 .. 1 ) {
+            my %seen = map { $_ => undef } @{ $self->[$i]->{$residue} };
+            $self->[$i]->{$residue} = [ sort { $a cmp $b } keys %seen ];
+        }
     }
 
     1;
