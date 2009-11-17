@@ -9,6 +9,10 @@ use Carp;
 
 our $DEFAULT_PARTIAL = 0;
 
+=head2 load_sequence
+
+=cut
+
 sub load_sequence {
     TRACE('load_sequence called');
 
@@ -30,6 +34,10 @@ sub load_sequence {
 
     TRACE('load_sequence exiting');
 }
+
+=head2 translate
+
+=cut
 
 sub translate {
     TRACE('translate called');

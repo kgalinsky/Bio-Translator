@@ -142,7 +142,7 @@ sub validate_seq_params (\@) {
     );
 }
 
-=head2 validate_exons_params
+=head2 validate_seq_exons_params
 
     my ( $seq_ref, $exons, @p ) = validate_seq_exons_params(@_);
 
@@ -236,27 +236,18 @@ sub validate_exons {
         my ( $lower, $upper ) = @$exon;
 
         # Make sure upper and lower bounds are integers
-        if ( $lower !~ m/^\d+$/ ) {
-            FATAL "Lower $lower not an integer";
-            croak "Lower $lower not an integer";
-        }
-
-        if ( $upper !~ m/^\d+$/ ) {
-            FATAL "Upper $upper not an integer";
-            croak "Upper $upper not an integer";
-        }
+        get_logger()->logcroak("Lower $lower not an integer")
+          if ( $lower !~ m/^\d+$/ );
+        get_logger()->logcroak("Upper $upper not an integer")
+          if ( $upper !~ m/^\d+$/ );
 
         # Make sure upper >= lower
-        if ( $upper < $lower ) {
-            FATAL "Upper $upper < Lower $lower";
-            croak "Upper $upper < Lower $lower";
-        }
+        get_logger()->logcroak("Upper $upper < Lower $lower")
+          if ( $upper < $lower );
 
         # Make sure upper is within the sequence
-        if ( $upper > length($$seq_ref) ) {
-            FATAL "Upper $upper not in the sequence";
-            croak "Upper $upper not in the sequence";
-        }
+        get_logger()->logcroak("Upper $upper not in the sequence")
+          if ( $upper > length($$seq_ref) );
     }
 }
 
