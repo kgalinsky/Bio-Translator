@@ -12,7 +12,7 @@ my $builder = Module::Build->new(
     },
     requires => {
         'JCVI::AATools' => '>= 0.1.0',
-        'JCVI::DNATools' => '>= 0.1.5'
+        'JCVI::DNATools' => '>= 0.2.0'
     },
     add_to_cleanup      => [ 'JCVI-Translator-*' ],
     create_makefile_pl => 'traditional',

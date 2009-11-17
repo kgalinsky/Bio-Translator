@@ -79,7 +79,7 @@ use JCVI::Translator::Table;
 use JCVI::Translator::Base;
 use JCVI::Translator::Validations qw(:validations);
 
-use JCVI::DNATools qw( $nuc_match cleanDNA );
+use JCVI::DNATools qw( $all_nucleotide_match cleanDNA );
 
 =head1 CONSTRUCTORS
 
@@ -436,7 +436,7 @@ sub translate_codon {
 
     my ( $codon, @p ) = validate_pos(
         @_,
-        { regex => qr/^${nuc_match}{3}$/ },
+        { regex => qr/^${all_nucleotide_match}{3}$/ },
         { type  => Params::Validate::HASHREF, default => {} }
 
     );
