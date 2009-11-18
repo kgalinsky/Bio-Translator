@@ -48,6 +48,7 @@ use JCVI::DNATools qw(
   @all_nucleotides
   $all_nucleotide_match
 
+  unrollDNA
   reverse_complement
 );
 
@@ -537,8 +538,6 @@ Examples:
 =cut
 
 sub string {
-    TRACE('table_string called');
-
     my $self = shift;
 
     my $bootstrap =
@@ -551,171 +550,65 @@ sub string {
     # Generate the names string
     my $names = join( '; ', @{ $self->names } );
 
-    my ( $residues, $starts );    # starts/residues string
-    my @base = (undef) x 3;       # this will store the base strings
 
-    # Loop over all stored codons. Sort the codons in the translation table and
-    # starts table, then use grep to get the unique ones with the help of $prev
-    # which stores the previous value
-    my $prev = '';
-    foreach my $codon (
-        grep ( ( $_ ne $prev ) && ( $prev = $_ ),
-            sort { $a cmp $b } (
-                keys( %{ $self->_codon2aa->[0] } ),
-                keys( %{ $self->_codon2start->[0] } )
-              ) )
-      )
-    {
-        $residues .= $self->_codon2aa->[0]->{$codon}    || 'X';
-        $starts   .= $self->_codon2start->[0]->{$codon} || '-';
+    # Make the hashes of amino acid to codons and start amino acids to codons
+    my %aa2codons = %{ $self->_aa2codons->forward };
 
-        # Chop up the codon because the bases are stored on separate lines
-        $base[ -$_ ] .= chop $codon foreach ( 1 .. 3 );
+    my $codon2start = $self->_codon2start->forward;
+    my %start2codons;
+
+    foreach my $start_codon ( @{ $aa2codons{'+'} } ) {
+        my $start_aa = $codon2start->{$start_codon};
+        push @{ $start2codons{$start_aa} }, $start_codon;
+    }
+
+    delete $aa2codons{'+'};
+
+    # Minimize the codons in each group by removing those that are implied by
+    # a degenerate codon
+    foreach my $group ( values(%aa2codons), values(%start2codons) ) {
+        my %group_hash = map { $_ => undef } @$group;
+        foreach my $codon (@$group) {
+            my $possibilities = unrollDNA( \$codon );
+            shift(@$possibilities);
+            delete @group_hash{@$possibilities};
+        }
+        @$group = sort keys %group_hash;
+    }
+
+    # Create the arrays that will be used to generate the string
+    my ( @residues, @starts );
+    my @bases = map { [] } (undef) x 3;
+
+    foreach my $start ( sort keys %start2codons ) {
+        foreach my $codon ( @{ $start2codons{$start} } ) {
+            push @residues, 'X';
+            push @starts,   $start;
+            for my $i ( 1 .. 3 ) { push @{ $bases[ -$i ] }, chop $codon }
+        }
+    }
+    foreach my $aa ( sort keys %aa2codons ) {
+        foreach my $codon ( @{ $aa2codons{$aa} } ) {
+            push @residues, $aa;
+            push @starts,   '-';
+            for my $i ( 1 .. 3 ) { push @{ $bases[ -$i ] }, chop $codon }
+        }
     }
 
     # Generate the string
-    my $string = join( "\n",
-        '{',
-        qq(name "$names" ,),
-        qq(id $self->{id} ,),
-        qq(ncbieaa  "$residues",),
-        qq(sncbieaa "$starts"),
-        map( {"-- Base$_  $base[$_ - 1]"} ( 1 .. 3 ) ),
-        '}' );
+    my $string = join(
+        "\n", '{',
+        qq{name "$names" ,},
+        'id ' . $self->id . ' ,',
+        'ncbieaa  "' . join( '', @residues ) . '",',
+        'sncbieaa "' . join( '', @starts ) . '",',
+        map( { "-- Base$_  " . join( '', @{ $bases[ $_ - 1 ] } ) . '"' }
+            ( 1 .. 3 )
+        ),
+        '}'
+    );
 
     return \$string;
-}
-
-=head2 string2
-
-Eventually replace string method by more concisely printing out the string
-
-=cut
-
-sub string2 {
-    my $self = shift;
-
-    my $codon2aa    = $self->_codon2aa->[0];
-    my $codon2start = $self->_codon2start->[0];
-
-
-
-    my %groups;
-
-    foreach my $b1 (@DNAs) {
-        foreach my $b2 (@DNAs) {
-            foreach my $b3 (@DNAs) {
-                my $codon = "$b1$b2$b3";
-                my $group = join( '',
-                    ( $codon2aa->{$codon} || 'X' ),
-                    ( $codon2start->{$codon} || '-' ) );
-
-                push @{ $groups{$group} }, $codon;
-            }
-        }
-    }
-
-    {
-        my @arrays;
-        foreach my $header ( sort keys %groups ) {
-            my $group = $groups{$header};
-
-            my $start = chop $header;
-            my $aa    = chop $header;
-
-            foreach (@$group) {
-                my $codon = $_;
-                push @{ $arrays[0] }, $aa;
-                push @{ $arrays[1] }, $start;
-                push @{ $arrays[4] }, chop $codon;
-                push @{ $arrays[3] }, chop $codon;
-                push @{ $arrays[2] }, chop $codon;
-            }
-        }
-        print map { join( '', @$_ ), "\n" } @arrays;
-    }
-
-    foreach my $header ( sort keys %groups ) {
-        my $group = $groups{$header};
-        my %simplified = map { $_ => 0 } @$group;
-        my @degenerate_codons;
-        {
-            my %degens;
-            foreach my $codon (@$group) {
-                $codon =~ m/(.)(..)/;
-                push @{ $degens{$2} }, $1;
-            }
-            foreach my $similar ( keys %degens ) {
-                my $remaining = $degens{$similar};
-                next unless ( @$remaining > 1 );
-                my $nucleotides = join( '', sort @$remaining );
-                my $degenerate = $nucleotides2degenerate{$nucleotides};
-                push @degenerate_codons, $degenerate . $similar;
-                foreach my $nucleotide (@$remaining) {
-                    $simplified{ $nucleotide . $similar } = 1;
-                }
-            }
-        }
-        {
-            my %degens;
-            foreach my $codon (@$group) {
-                $codon =~ m/(.)(.)(.)/;
-                push @{ $degens{$1 . $3} }, $2;
-            }
-            foreach my $similar ( keys %degens ) {
-                my $remaining = $degens{$similar};
-                next unless ( @$remaining > 1 );
-                my $nucleotides = join( '', sort @$remaining );
-                my $degenerate = $nucleotides2degenerate{$nucleotides};
-                my ($b1, $b2) = split //, $similar;
-                push @degenerate_codons, $b1 . $degenerate . $b2;
-                foreach my $nucleotide (@$remaining) {
-                    $simplified{ $b1 . $nucleotide . $b2 } = 1;
-                }
-            }
-        }
-        {
-            my %degens;
-            foreach my $codon (@$group) {
-                $codon =~ m/(..)(.)/;
-                push @{ $degens{$1} }, $2;
-            }
-            foreach my $similar ( keys %degens ) {
-                my $remaining = $degens{$similar};
-                next unless ( @$remaining > 1 );
-                my $nucleotides = join( '', sort @$remaining );
-                my $degenerate = $nucleotides2degenerate{$nucleotides};
-                push @degenerate_codons, $similar . $degenerate;
-                foreach my $nucleotide (@$remaining) {
-                    $simplified{ $similar . $nucleotide } = 1;
-                }
-            }
-        }
-
-        @$group =
-          sort( @degenerate_codons,
-            grep { $simplified{$_} == 0 } keys %simplified );
-    }
-
-    {
-        my @arrays;
-        foreach my $header ( sort keys %groups ) {
-            my $group = $groups{$header};
-
-            my $start = chop $header;
-            my $aa    = chop $header;
-
-            foreach (@$group) {
-                my $codon = $_;
-                push @{ $arrays[0] }, $aa;
-                push @{ $arrays[1] }, $start;
-                push @{ $arrays[4] }, chop $codon;
-                push @{ $arrays[3] }, chop $codon;
-                push @{ $arrays[2] }, chop $codon;
-            }
-        }
-        print map { join( '', @$_ ), "\n" } @arrays;
-    }
 }
 
 {
