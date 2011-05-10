@@ -2,11 +2,11 @@
 
 use Test::More 'no_plan';
 
-use JCVI::Translator;
+use Bio::Tiny::Translator;
 
 my $seq = 'CTGATATCATGCATGCCATTCTCGACCGCTATGCGCCTCCTGTTCCTCGTGGGCCCAAAA';
 
-my $translator = new JCVI::Translator();
+my $translator = new Bio::Tiny::Translator();
 
 # Simple cases
 is( ${ $translator->translate_exons( \$seq, [ [ 0, 60 ] ] ) },

@@ -2,12 +2,12 @@ bin/translate_fasta.pl
 Changes
 Debian_CPANTS.txt
 doc/translator.xmi
-lib/JCVI/Translator.pm
-lib/JCVI/Translator/Base.pm
-lib/JCVI/Translator/Caching.pm
-lib/JCVI/Translator/Table.pm
-lib/JCVI/Translator/Utils.pm
-lib/JCVI/Translator/Validations.pm
+lib/Bio/Tiny/Translator.pm
+lib/Bio/Tiny/Translator/Base.pm
+lib/Bio/Tiny/Translator/Caching.pm
+lib/Bio/Tiny/Translator/Table.pm
+lib/Bio/Tiny/Translator/Utils.pm
+lib/Bio/Tiny/Translator/Validations.pm
 Makefile.PL
 MANIFEST
 META.yml			# Will be created by "make dist"

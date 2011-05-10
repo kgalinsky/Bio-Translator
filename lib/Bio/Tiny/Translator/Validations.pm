@@ -1,11 +1,11 @@
-# JCVI::Translator::Validations
+# Bio::Tiny::Translator::Validations
 #
 # $Author$
 # $Date$
 # $Revision$
 # $HeadURL$
 
-package JCVI::Translator::Validations;
+package Bio::Tiny::Translator::Validations;
 
 use strict;
 use warnings;

@@ -1,4 +1,4 @@
-# JCVI::Translator:Utils
+# Bio::Tiny::Translator:Utils
 #
 # $Author$
 # $Date$
@@ -7,15 +7,15 @@
 
 =head1 NAME
 
-JCVI::Translator::Utils - Utilities that requrie a translation table
+Bio::Tiny::Translator::Utils - Utilities that requrie a translation table
 
 =head1 SYNOPSIS
 
-    use JCVI::Translator::Utils;
+    use Bio::Tiny::Translator::Utils;
 
-    # Same constructor as JCVI::Translator
-    my $utils = new JCVI::Translator::Utils();
-    my $utils = custom JCVI::Translator( \$custom_table );
+    # Same constructor as Bio::Tiny::Translator
+    my $utils = new Bio::Tiny::Translator::Utils();
+    my $utils = custom Bio::Tiny::Translator( \$custom_table );
 
     my $codons = $utils->codons( $residue );
     my $regex  = $utils->regex( $residue );
@@ -28,23 +28,23 @@ JCVI::Translator::Utils - Utilities that requrie a translation table
 
 =head1 DESCRIPTION
 
-See JCVI::Translator for more info. Utils contains utilites that require
+See Bio::Tiny::Translator for more info. Utils contains utilites that require
 knowledge of the translation table.
 
 =cut
 
-package JCVI::Translator::Utils;
+package Bio::Tiny::Translator::Utils;
 
 use strict;
 use warnings;
 
-use base qw(JCVI::Translator);
+use base qw(Bio::Tiny::Translator);
 __PACKAGE__->mk_accessors(qw( _regexes ));
 
 use Log::Log4perl qw(:easy);
 use Params::Validate;
 
-use JCVI::Translator::Validations qw(:validations :regexes);
+use Bio::Tiny::Translator::Validations qw(:validations :regexes);
 
 use JCVI::DNATools qw( cleanDNA );
 use JCVI::AATools qw( $aa_match );
@@ -673,7 +673,7 @@ sub nonstop {
 
 =head1 AUTHOR
 
-Kevin Galinsky, <kgalinsk@jcvi.org>
+Kevin Galinsky, <kgalinsky plus cpan at gmail dot com>
 
 =head1 COPYRIGHT & LICENSE
 

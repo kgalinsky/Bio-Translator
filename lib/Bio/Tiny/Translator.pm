@@ -1,4 +1,4 @@
-# JCVI::Translator
+# Bio::Tiny::Translator
 #
 # $Author$
 # $Date$
@@ -7,20 +7,20 @@
 
 =head1 NAME
 
-JCVI::Translator - Translate DNA sequences
+Bio::Tiny::Translator - Translate DNA sequences
 
 =head1 SYNOPSIS
 
-    use JCVI::Translator;
+    use Bio::Tiny::Translator;
 
-    my $translator = new JCVI::Translator();
-    my $translator = new JCVI::Translator(11);
-    my $translator = new JCVI::Translator( 12, 'id' );
-    my $translator = new JCVI::Translator( 'Yeast Mitochondrial', 'name' );
-    my $translator = new JCVI::Translator( 'mito', 'name' );
+    my $translator = new Bio::Tiny::Translator();
+    my $translator = new Bio::Tiny::Translator(11);
+    my $translator = new Bio::Tiny::Translator( 12, 'id' );
+    my $translator = new Bio::Tiny::Translator( 'Yeast Mitochondrial', 'name' );
+    my $translator = new Bio::Tiny::Translator( 'mito', 'name' );
 
-    my $translator = custom JCVI::Translator( \$custom_table );
-    my $translator = custom JCVI::Translator( \$custom_table, 1 );
+    my $translator = custom Bio::Tiny::Translator( \$custom_table );
+    my $translator = custom Bio::Tiny::Translator( \$custom_table, 1 );
 
     $translator->translate( \$seq );
     $translator->translate( \$seq, { strand => 1 } );
@@ -28,13 +28,13 @@ JCVI::Translator - Translate DNA sequences
 
 =head1 DESCRIPTION
 
-JCVI::Translator tries to be a robust translator object featuring translation
+Bio::Tiny::Translator tries to be a robust translator object featuring translation
 tables based off the the ones provided by NCBI
 (http://www.ncbi.nlm.nih.gov/Taxonomy/Utils/wprintgc.cgi).
 Key features include the ability to handle degenerate nucleotides and to
 translate to ambiguous amino acids.
 
-The way to work with JCVI::Translator is you create a new translator using an
+The way to work with Bio::Tiny::Translator is you create a new translator using an
 internal translation table or a provided one, this module will translate DNA
 sequences for you.
 
@@ -61,7 +61,7 @@ Params::Validate documentation.
 
 =cut
 
-package JCVI::Translator;
+package Bio::Tiny::Translator;
 
 use strict;
 use warnings;
@@ -75,9 +75,9 @@ use Carp;
 use Log::Log4perl qw(:easy);
 use Params::Validate;
 
-use JCVI::Translator::Table;
-use JCVI::Translator::Base;
-use JCVI::Translator::Validations qw(:validations);
+use Bio::Tiny::Translator::Table;
+use Bio::Tiny::Translator::Base;
+use Bio::Tiny::Translator::Validations qw(:validations);
 
 use JCVI::DNATools qw( $all_nucleotide_match cleanDNA );
 
@@ -88,17 +88,17 @@ use JCVI::DNATools qw( $all_nucleotide_match cleanDNA );
 sub _new {
     my $class = shift;
     $class->SUPER::new(
-        { table => shift, base => JCVI::Translator::Base->new() } );
+        { table => shift, base => Bio::Tiny::Translator::Base->new() } );
 }
 
 =head2 new
 
-    my $translator = new JCVI::Translator();
-    my $translator = new JCVI::Translator( $id );
-    my $translator = new JCVI::Translator( $id, \%params );
+    my $translator = new Bio::Tiny::Translator();
+    my $translator = new Bio::Tiny::Translator( $id );
+    my $translator = new Bio::Tiny::Translator( $id, \%params );
 
 Create a translator with a translation table provided by $id. Please see
-JCVI::Translator::Table for the full list of options.
+Bio::Tiny::Translator::Table for the full list of options.
 
 =cut
 
@@ -106,7 +106,7 @@ sub new {
     TRACE('new called');
 
     my $class = shift;
-    my $table = JCVI::Translator::Table->new(@_);
+    my $table = Bio::Tiny::Translator::Table->new(@_);
 
     return undef unless ($table);
 
@@ -119,7 +119,7 @@ sub new {
     my $translator = $translator->custom( $table_ref, \%params );
 
 Create a translator with a custom translation table. Please see
-JCVI::Translator::Table for the full list of options.
+Bio::Tiny::Translator::Table for the full list of options.
 
 =cut
 
@@ -127,7 +127,7 @@ sub custom {
     TRACE('custom called');
 
     my $class = shift;
-    my $table = JCVI::Translator::Table->custom(@_);
+    my $table = Bio::Tiny::Translator::Table->custom(@_);
 
     return undef unless ($table);
 
@@ -485,13 +485,13 @@ sub translate_codon {
 
 =head1 AUTHOR
 
-Kevin Galinsky, C<< <kgalinsk at jcvi.org> >>
+Kevin Galinsky, C<< <kgalinsky plus cpan at gmail dot com> >>
 
 =head1 BUGS
 
 Please report any bugs or feature requests to
 C<bug-jcvi-translator at rt.cpan.org>, or through the web interface at
-L<http://rt.cpan.org/NoAuth/ReportBug.html?Queue=JCVI-Translator>.
+L<http://rt.cpan.org/NoAuth/ReportBug.html?Queue=Bio-Tiny-Translator>.
 I will be notified, and then you'll automatically be notified of progress on
 your bug as I make changes.
 
@@ -499,7 +499,7 @@ your bug as I make changes.
 
 You can find documentation for this module with the perldoc command.
 
-    perldoc JCVI::Translator
+    perldoc Bio::Tiny::Translator
 
 You can also look for information at:
 
@@ -507,19 +507,19 @@ You can also look for information at:
 
 =item * AnnoCPAN: Annotated CPAN documentation
 
-L<http://annocpan.org/dist/JCVI-Translator>
+L<http://annocpan.org/dist/Bio-Tiny-Translator>
 
 =item * CPAN Ratings
 
-L<http://cpanratings.perl.org/d/JCVI-Translator>
+L<http://cpanratings.perl.org/d/Bio-Tiny-Translator>
 
 =item * RT: CPAN's request tracker
 
-L<http://rt.cpan.org/NoAuth/Bugs.html?Dist=JCVI-Translator>
+L<http://rt.cpan.org/NoAuth/Bugs.html?Dist=Bio-Tiny-Translator>
 
 =item * Search CPAN
 
-L<http://search.cpan.org/dist/JCVI-Translator>
+L<http://search.cpan.org/dist/Bio-Tiny-Translator>
 
 =back
 

@@ -1,9 +1,9 @@
-package JCVI::Translator::Caching;
+package Bio::Tiny::Translator::Caching;
 
 use strict;
 use warnings;
 
-use base qw(JCVI::Translator);
+use base qw(Bio::Tiny::Translator);
 
 use Carp;
 

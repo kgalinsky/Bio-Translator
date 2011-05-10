@@ -1,4 +1,4 @@
-# JCVI::Translator::Table
+# Bio::Tiny::Translator::Table
 #
 # $Author$
 # $Date$
@@ -7,11 +7,11 @@
 
 =head1 NAME
 
-JCVI::Translator::Base - Contains translation methods for JCVI::Translator
+Bio::Tiny::Translator::Base - Contains translation methods for Bio::Tiny::Translator
 
 =head1 SYNOPSIS
 
-    my $base = new JCVI::Translator::Base;
+    my $base = new Bio::Tiny::Translator::Base;
     $base->set_seq($seq_ref);
     $base->set_partial($partial);
     $base->prepare($strand, $table);
@@ -24,7 +24,7 @@ This package contains the actual methods that do the translation.
 
 =cut
 
-package JCVI::Translator::Base;
+package Bio::Tiny::Translator::Base;
 
 use strict;
 use warnings;
@@ -102,7 +102,7 @@ sub prepare {
     my $rc = $strand == 1 ? 0 : 1;
     $self->{rc}        = $rc;
 
-    # The translation tables are keyed on $rc in JCVI::Translator::Table
+    # The translation tables are keyed on $rc in Bio::Tiny::Translator::Table
     $self->{table}  = $table->_codon2aa->[$rc];
     $self->{starts} = $table->_codon2start->[$rc];
 }
@@ -310,7 +310,7 @@ sub translate_leftover {
 
 =head1 AUTHOR
 
-Kevin Galinsky, <kgalinsk@jcvi.org>
+Kevin Galinsky, <kgalinsky plus cpan at gmail dot com>
 
 =head1 COPYRIGHT & LICENSE
 

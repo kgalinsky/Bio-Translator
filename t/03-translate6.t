@@ -3,9 +3,9 @@
 use Test::More 'no_plan';
 use JCVI::DNATools qw(randomDNA);
 
-use JCVI::Translator;
+use Bio::Tiny::Translator;
 
-my $translator = new JCVI::Translator;
+my $translator = new Bio::Tiny::Translator;
 
 my $dna     = randomDNA();
 my $peptide = $translator->translate6($dna);

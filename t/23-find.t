@@ -1,10 +1,10 @@
 #!perl
 
 use Test::More 'no_plan';
-use JCVI::Translator::Utils;
+use Bio::Tiny::Translator::Utils;
 use List::Compare;
 
-my $utils = new JCVI::Translator::Utils();
+my $utils = new Bio::Tiny::Translator::Utils();
 
 eval { $utils->find() };
 ok( $@, 'find died with no options' );

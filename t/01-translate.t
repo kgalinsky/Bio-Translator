@@ -2,11 +2,11 @@
 
 use Test::More 'no_plan';
 
-use JCVI::Translator;
+use Bio::Tiny::Translator;
 
 my $seq = 'CTGATATCATGCATGCCATTCTCGACCGCTATGCGCCTCCTGTTCCTCGTGGGCCCAAAA';
 
-my $translator = new JCVI::Translator();
+my $translator = new Bio::Tiny::Translator();
 
 is( ${ $translator->translate( \$seq ) },
     'MISCMPFSTAMRLLFLVGPK', 'Translate frame 1' );

@@ -2,12 +2,12 @@
 
 use Test::More 'no_plan';
 
-use JCVI::Translator;
+use Bio::Tiny::Translator;
 
 my $translator;
 
 ok(
-    $translator = custom JCVI::Translator(
+    $translator = custom Bio::Tiny::Translator(
         \'{
 name "Standard" ,
 name "SGC0" ,

@@ -1,4 +1,4 @@
-# JCVI::Translator::Table
+# Bio::Tiny::Translator::Table
 #
 # $Author$
 # $Date$
@@ -7,25 +7,25 @@
 
 =head1 NAME
 
-JCVI::Translator::Table - Translation table for JCVI::Translator
+Bio::Tiny::Translator::Table - Translation table for Bio::Tiny::Translator
 
 =head1 SYNOPSIS
 
-    use JCVI::Translator::Table;
+    use Bio::Tiny::Translator::Table;
     
-    my $table = new JCVI::Translator();
-    my $table = new JCVI::Translator(11);
-    my $table = new JCVI::Translator( 12, { type => 'id' } );
-    my $table = new JCVI::Translator( 'Yeast Mitochondrial', { type => 'name' } );
-    my $table = new JCVI::Translator( 'mito', { type => 'name' } );
+    my $table = new Bio::Tiny::Translator();
+    my $table = new Bio::Tiny::Translator(11);
+    my $table = new Bio::Tiny::Translator( 12, { type => 'id' } );
+    my $table = new Bio::Tiny::Translator( 'Yeast Mitochondrial', { type => 'name' } );
+    my $table = new Bio::Tiny::Translator( 'mito', { type => 'name' } );
 
-    my $table = custom JCVI::Translator( \$custom_table );
-    my $tale = custom JCVI::Translator( \$custom_table, { bootstrap => 0 } );
+    my $table = custom Bio::Tiny::Translator( \$custom_table );
+    my $tale = custom Bio::Tiny::Translator( \$custom_table, { bootstrap => 0 } );
 
 
 =cut
 
-package JCVI::Translator::Table;
+package Bio::Tiny::Translator::Table;
 
 use strict;
 use warnings;
@@ -68,9 +68,9 @@ sub _new {
     shift->SUPER::new(
         {
             names        => [],
-            _codon2aa    => JCVI::Translator::Table::Pair->new(),
-            _codon2start => JCVI::Translator::Table::Pair->new(),
-            _aa2codons   => JCVI::Translator::Table::Pair->new()
+            _codon2aa    => Bio::Tiny::Translator::Table::Pair->new(),
+            _codon2start => Bio::Tiny::Translator::Table::Pair->new(),
+            _aa2codons   => Bio::Tiny::Translator::Table::Pair->new()
         }
     );
 }
@@ -81,9 +81,9 @@ sub _new {
 
 =head2 new
 
-    my $table = JCVI::Translator::Table->new();
-    my $table = JCVI::Translator::Table->new( $id );
-    my $table = JCVI::Translator::Table->new( $id, \%params );
+    my $table = Bio::Tiny::Translator::Table->new();
+    my $table = Bio::Tiny::Translator::Table->new( $id );
+    my $table = Bio::Tiny::Translator::Table->new( $id, \%params );
 
 This method creates a translation table by loading a table string from the
 internal list. Pass an ID and the type of ID. By default, it will load the
@@ -115,18 +115,18 @@ strings.
 By default, the "Standard" translation table will be loaded. You may instantiate
 this translation table by calling any of the following:
 
-    my $t = JCVI::Translator::Table->new();
-    my $t = JCVI::Translator::Table->new(1);
-    my $t = JCVI::Translator::Table->new( 1,          { type => 'id' } );
-    my $t = JCVI::Translator::Table->new( 'Standard', { type => 'name' } );
-    my $t = JCVI::Translator::Table->new( 'SGC0',     { type => 'name' } );
-    my $t = JCVI::Translator::Table->new( 'standard', { type => 'name' } );
-    my $t = JCVI::Translator::Table->new( 'stan',     { type => 'name' } );
+    my $t = Bio::Tiny::Translator::Table->new();
+    my $t = Bio::Tiny::Translator::Table->new(1);
+    my $t = Bio::Tiny::Translator::Table->new( 1,          { type => 'id' } );
+    my $t = Bio::Tiny::Translator::Table->new( 'Standard', { type => 'name' } );
+    my $t = Bio::Tiny::Translator::Table->new( 'SGC0',     { type => 'name' } );
+    my $t = Bio::Tiny::Translator::Table->new( 'standard', { type => 'name' } );
+    my $t = Bio::Tiny::Translator::Table->new( 'stan',     { type => 'name' } );
 
 For partial matches, this module will use the first matching translation
 table.
 
-    my $t = JCVI::Translator::Table->new( 'mitochondrial', { type => 'name' } );
+    my $t = Bio::Tiny::Translator::Table->new( 'mitochondrial', { type => 'name' } );
 
 This will use translation table with ID 2, "Vertebrate Mitochondrial," because
 that is the first match (even though "Yeast Mitochondrial" would also match).
@@ -190,8 +190,8 @@ sub new {
 
 =head2 custom()
 
-    my $table = JCVI::Translator::Table->custom( $table_ref );
-    my $table = JCVI::Translator::Table->custom( $table_ref, \%params );
+    my $table = Bio::Tiny::Translator::Table->custom( $table_ref );
+    my $table = Bio::Tiny::Translator::Table->custom( $table_ref, \%params );
 
 Create a translation table based off a passed table reference for custom
 translation tables. Loads degenerate nucleotides if bootstrap isn't set (this
@@ -623,7 +623,7 @@ sub string {
 
 {
 
-    package JCVI::Translator::Table::Pair;
+    package Bio::Tiny::Translator::Table::Pair;
 
     use strict;
     use warnings;
@@ -845,7 +845,7 @@ degenerate nucleotides was removed.
 
 =head1 AUTHOR
 
-Kevin Galinsky, <kgalinsk at jcvi.org>
+Kevin Galinsky, <kgalinsky plus cpan at gmail dot com>
 
 =head1 COPYRIGHT & LICENSE
 
