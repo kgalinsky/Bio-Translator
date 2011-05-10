@@ -259,8 +259,6 @@ Example:
 =cut
 
 sub translate_codon {
-    TRACE("translate_codon called");
-
     my $self = shift;
 
     my ( $codon, @p ) = validate_pos(
