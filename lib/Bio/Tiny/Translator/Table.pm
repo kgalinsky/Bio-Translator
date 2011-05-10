@@ -33,7 +33,6 @@ use warnings;
 use base qw(Class::Accessor::Fast);
 __PACKAGE__->mk_accessors(qw(id names _codon2aa _codon2start _aa2codons));
 
-use Log::Log4perl qw(:easy);
 use Params::Validate;
 
 use Bio::Tiny::Util::DNA qw(
@@ -134,8 +133,6 @@ that is the first match (even though "Yeast Mitochondrial" would also match).
 =cut
 
 sub new {
-    TRACE('new called');
-
     my $class = shift;
 
     my ( $id, @p );
@@ -157,9 +154,6 @@ sub new {
             }
         }
     );
-
-    TRACE( uc( $p{type} ) . ': ' . $id );
-
     # Get the beginning DATA so that we can seek back to it
     my $start_pos = tell DATA;
 
@@ -242,8 +236,6 @@ my $TABLE_REGEX = qr/
                      /isx;
 
 sub custom {
-    TRACE('custom called');
-
     my $class = shift;
 
     my ( $table_ref, @p );
@@ -376,8 +368,6 @@ Examples:
 =cut
 
 sub add_translation {
-    TRACE('add_translation called');
-
     my $self = shift;
 
     my ( $codon, $residue, @p );
@@ -438,8 +428,6 @@ that involve degenerate nucleotides or ambiguous amino acids.
 =cut
 
 sub bootstrap {
-    TRACE('bootstrap called');
-
     my $self = shift;
 
     # Loop through every nucleotide combination and run _translate_codon on
@@ -517,7 +505,6 @@ sub _unroll {
 
     # If we got this far, it means that we have a valid consensus sequence for
     # a degenerate-nucleotide-containing codon. Cache and return results.
-    DEBUG("New codon translation found: $codon => $consensus");
     $self->add_translation( $codon, $consensus, @_ );
     return $consensus;
 }
