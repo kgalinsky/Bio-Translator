@@ -11,8 +11,8 @@ my $builder = Module::Build->new(
         'Test::More' => 0,
     },
     requires => {
-        'JCVI::AATools' => '>= 0.1.0',
-        'JCVI::DNATools' => '>= 0.2.0'
+        'Bio::Tiny::Util::AA' => '>= 0.1.0',
+        'Bio::Tiny::Util::DNA' => '>= 0.2.0'
     },
     add_to_cleanup      => [ 'Bio-Tiny-Translator-*' ],
     create_makefile_pl => 'traditional',

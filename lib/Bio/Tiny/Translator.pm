@@ -79,7 +79,7 @@ use Bio::Tiny::Translator::Table;
 use Bio::Tiny::Translator::Base;
 use Bio::Tiny::Translator::Validations qw(:validations);
 
-use JCVI::DNATools qw( $all_nucleotide_match cleanDNA );
+use Bio::Tiny::Util::DNA qw( $all_nucleotide_match cleanDNA );
 
 =head1 CONSTRUCTORS
 
@@ -167,7 +167,7 @@ and the translator will skip that step.
 sanitized is a flag translator know that this sequence has been stripped of
 whitespace and that all the codons are capitalized. Otherwise, translator will
 do that in order to speed up the translation process (see
-JCVI::DNATools::cleanDNA).
+Bio::Tiny::Util::DNA::cleanDNA).
 
 To translate the following:
 

@@ -46,8 +46,8 @@ use Params::Validate;
 
 use Bio::Tiny::Translator::Validations qw(:validations :regexes);
 
-use JCVI::DNATools qw( cleanDNA );
-use JCVI::AATools qw( $aa_match );
+use Bio::Tiny::Util::DNA qw( cleanDNA );
+use Bio::Tiny::Util::AA qw( $aa_match );
 
 # Default values
 our $DEFAULT_STRAND        = 1;

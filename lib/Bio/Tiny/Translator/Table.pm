@@ -36,7 +36,7 @@ __PACKAGE__->mk_accessors(qw(id names _codon2aa _codon2start _aa2codons));
 use Log::Log4perl qw(:easy);
 use Params::Validate;
 
-use JCVI::DNATools qw(
+use Bio::Tiny::Util::DNA qw(
   %degenerate2nucleotides
   %nucleotides2degenerate
   %degenerate_hierarchy
@@ -52,7 +52,7 @@ use JCVI::DNATools qw(
   reverse_complement
 );
 
-use JCVI::AATools qw(
+use Bio::Tiny::Util::AA qw(
   %ambiguous_forward
   %ambiguous_map
   $aa_match
@@ -628,7 +628,7 @@ sub string {
     use strict;
     use warnings;
 
-    use JCVI::DNATools qw(reverse_complement);
+    use Bio::Tiny::Util::DNA qw(reverse_complement);
 
     sub new {
         my $class = shift;

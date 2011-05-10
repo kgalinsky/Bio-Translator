@@ -1,7 +1,7 @@
 #!perl
 
 use Test::More 'no_plan';
-use JCVI::DNATools qw(randomDNA);
+use Bio::Tiny::Util::DNA qw(randomDNA);
 
 use Bio::Tiny::Translator;
 
