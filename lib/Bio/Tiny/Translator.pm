@@ -1,10 +1,3 @@
-# Bio::Tiny::Translator
-#
-# $Author$
-# $Date$
-# $Revision$
-# $HeadURL$
-
 =head1 NAME
 
 Bio::Tiny::Translator - Translate DNA sequences
@@ -28,17 +21,17 @@ Bio::Tiny::Translator - Translate DNA sequences
 
 =head1 DESCRIPTION
 
-Bio::Tiny::Translator tries to be a robust translator object featuring translation
-tables based off the the ones provided by NCBI
-(http://www.ncbi.nlm.nih.gov/Taxonomy/Utils/wprintgc.cgi).
+C<Bio::Tiny::Translator> tries to be a robust translator object featuring
+translation tables based off the the ones provided by
+L<NCBI|http://www.ncbi.nlm.nih.gov/Taxonomy/Utils/wprintgc.cgi>.
 Key features include the ability to handle degenerate nucleotides and to
 translate to ambiguous amino acids.
 
-The way to work with Bio::Tiny::Translator is you create a new translator using an
-internal translation table or a provided one, this module will translate DNA
-sequences for you.
+First, create a new translator object using one of the included tables or a
+custom one (see C<Bio::Tiny::Translator::Table> for table formats), and then
+passing your DNA sequences to your translator object.
 
-Translator uses interbase coordinates. See below for the difference between
+The translator uses interbase coordinates. See below for the difference between
 interbase coordinates and traditional numbering methods:
 
     Traditional   1 2 3 4
@@ -48,16 +41,12 @@ interbase coordinates and traditional numbering methods:
 Conversion methods between the two methods can depend upon what you are trying
 to do, but the simple way to do this is:
 
-    strand = 3' end <=> 5' end
+    strand = 3' end <=> 5' end # that's the spaceship operator!
     lower  = min( 5' end, 3' end ) - 1
     upper  = max( 5' end, 3' end )
 
-For logging, it uses Log::Log4Perl. This needs to be initialized to work.
-
-For parameter validation, uses Params::Validate. This
-introduces a bit of overhead, however, for scripts that are
-fully tested, validation can be disabled. See the
-Params::Validate documentation.
+Parameter validation uses L<Params::Validate> which introduces overhead but can
+be disabled. See the C<Params::Validate> documentation for more information.
 
 =cut
 
@@ -66,13 +55,12 @@ package Bio::Tiny::Translator;
 use strict;
 use warnings;
 
-use version; our $VERSION = qv('0.5.7');
+use version; our $VERSION = qv('0.6.0');
 
 use base qw(Class::Accessor::Fast);
 __PACKAGE__->mk_accessors(qw(table base));
 
 use Carp;
-use Log::Log4perl qw(:easy);
 use Params::Validate;
 
 use Bio::Tiny::Translator::Table;
@@ -103,8 +91,6 @@ Bio::Tiny::Translator::Table for the full list of options.
 =cut
 
 sub new {
-    TRACE('new called');
-
     my $class = shift;
     my $table = Bio::Tiny::Translator::Table->new(@_);
 
@@ -124,8 +110,6 @@ Bio::Tiny::Translator::Table for the full list of options.
 =cut
 
 sub custom {
-    TRACE('custom called');
-
     my $class = shift;
     my $table = Bio::Tiny::Translator::Table->custom(@_);
 
@@ -225,8 +209,6 @@ Examples:
 =cut
 
 sub translate {
-    TRACE('translate called');
-
     my $self = shift;
 
     my ( $seq_ref, @p ) = validate_seq_params(@_);
@@ -255,159 +237,6 @@ sub translate {
 
     # Translate and convert the resulting arrayref to a string
     my $peptide = join( '', @{ $self->base->translate() } );
-    return \$peptide;
-}
-
-=head2 translate6
-
-    my $pep_refs = $translator->translate6( $seq_ref );
-    my $pep_refs = $translator->translate6( $seq_ref, \%params );
-
-Translate the sequence in every possible way. Returns an array reference of all
-the translations. The structure of the array is as follows:
-
-    0: ---------->
-    1:  --------->
-    2:   -------->
-       NNNN...NNNN
-    3: <----------
-    4: <---------
-    5: <--------
-
-The parameters are similar to those use in translate:
-
-    lower:      integer between 0 and length; default = 0
-    upper:      integer between 0 and length; default = length
-    partial:    0 or 1; default = 0
-    sanitized:  0 or 1; default = 0
-
-Example:
-
-    $pep_refs = $translator->translate6(\'acttgacgt');
-
-Output:
-
-    $pep_refs = [
-                    $pep1,
-                    $pep2,
-                    $pep3,
-                    $reverse_pep1,
-                    $reverse_pep2,
-                    $reverse_pep3
-                ]
-
-=cut
-
-sub translate6 {
-    TRACE('translate6 called');
-
-    my $self = shift;
-
-    my ( $seq_ref, @p ) = validate_seq_params(@_);
-
-    # Check the sanitized value separately
-    my $sanitized = validate_sanitized(@p);
-
-    # Clean the sequence and cache it
-    $seq_ref = cleanDNA($seq_ref) unless ($sanitized);
-    $self->base->set_seq($seq_ref);
-
-    # Get lower and upper bounds
-    my @lu = validate_lower_upper( $seq_ref, @p );
-
-    my %p = validate( @p, {%VAL_PARTIAL} );
-
-    $self->base->set_partial( $p{partial} );
-
-    my @peptides;
-
-    foreach my $strand ( 1, -1 ) {
-
-        # We only need to prepare once for a given strand
-        $self->base->prepare( $strand, $self->table );
-
-        foreach my $offset ( 0 .. 2 ) {
-
-            # Calculate endpoints and translate
-            $self->base->endpoints( @lu, $offset );
-
-            # Translate and push onto array
-            push @peptides, join( '', @{ $self->base->translate() } );
-        }
-    }
-
-    return \@peptides;
-}
-
-=head2 translate_exons
-
-    my $pep_ref = translate_exons( $str_ref, $exons_array_ref );
-    my $pep_ref = translate_exons( $str_ref, $exons_array_ref, \%params );
-
-Translate a gene spanning multiple exons. Paramters are:
-
-    strand:     1 or -1; default = 1
-    partial:    0 or 1;  default = 0
-    sanitized:  0 or 1;  default = 0
-
-Input:
-
-    $exons_array_ref = [
-                            [$start0, $stop0],
-                            [$start1, $stop1],
-                            ...
-                       ];
-
-The order of the exons in the array doesn't matter. translate_exons will sort
-the exons.
-
-Example:
-
-    $pep_ref = translate_exons(\'actgcat', [ [0,2], [3,7] ]);
-    $pep_ref = translate_exons(\'actgcat', [ [0,2], [3,7] ], { strand => -1});
-
-=cut
-
-sub translate_exons {
-    TRACE('translate_exons called');
-
-    my $self = shift;
-
-    my ( $seq_ref, $exons, @p ) = validate_seq_exons_params(@_);
-
-    # Check the sanitized value separately
-    my $sanitized = validate_sanitized(@p);
-
-    # Clean the sequence and cache it
-    $seq_ref = cleanDNA($seq_ref) unless ($sanitized);
-    $self->base->set_seq($seq_ref);
-
-    # Validate optional arguments
-    my %p = validate( @p, { %VAL_STRAND, %VAL_PARTIAL, %VAL_SANITIZED } );
-
-    # Validate the exons and sort in the proper order for translation
-    validate_exons( $seq_ref, $exons );
-    my @exons = sort {
-        ( ( $a->[0] <=> $b->[0] ) || ( $a->[1] <=> $b->[1] ) ) * $p{strand}
-    } @$exons;
-
-    $self->base->set_partial( $p{partial} );
-
-    my $prep = $self->base->prepare( $p{strand}, $self->table );
-    my @peptides;
-
-  EXON: foreach my $exon (@exons) {
-        $self->base->endpoints(@$exon);
-
-        next EXON unless ( $self->base->finish_leftover() );
-
-        push @peptides, [ $self->base->translate_leftover() ];
-        push @peptides, $self->base->translate();
-        $self->base->store_leftover();
-    }
-
-    my $peptide = join( '', map { @$_ } @peptides );
-
     return \$peptide;
 }
 
@@ -485,12 +314,12 @@ sub translate_codon {
 
 =head1 AUTHOR
 
-Kevin Galinsky, C<< <kgalinsky plus cpan at gmail dot com> >>
+Kevin Galinsky, C<kgalinsky plus cpan at gmail dot com>
 
 =head1 BUGS
 
 Please report any bugs or feature requests to
-C<bug-jcvi-translator at rt.cpan.org>, or through the web interface at
+C<bug-bio-tiny-translator at rt.cpan.org>, or through the web interface at
 L<http://rt.cpan.org/NoAuth/ReportBug.html?Queue=Bio-Tiny-Translator>.
 I will be notified, and then you'll automatically be notified of progress on
 your bug as I make changes.
@@ -525,12 +354,11 @@ L<http://search.cpan.org/dist/Bio-Tiny-Translator>
 
 =head1 ACKNOWLEDGEMENTS
 
-Log::Log4perl
-Params::Validate
+JCVI/Paolo Amedeo
 
 =head1 COPYRIGHT & LICENSE
 
-Copyright 2008-2009 J. Craig Venter Institute, all rights reserved.
+Copyright 2008-2009 J. Craig Venter Institute, 2011 Kevin Galinsky.
 
 This program is free software; you can redistribute it and/or modify it
 under the same terms as Perl itself.
