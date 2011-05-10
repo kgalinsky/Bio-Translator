@@ -3,6 +3,8 @@
 	<name>Bio-Tiny-Translator</name>
 	<comment></comment>
 	<projects>
+		<project>Bio-Tiny-Util-AA</project>
+		<project>Bio-Tiny-Util-DNA</project>
 	</projects>
 	<buildSpec>
 		<buildCommand>
