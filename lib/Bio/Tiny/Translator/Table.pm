@@ -66,7 +66,7 @@ our $DEFAULT_BOOTSTRAP = 1;
 sub _new {
     shift->SUPER::new(
         {
-            names        => [],
+            names       => [],
             codon2aa    => Bio::Tiny::Translator::Table::Pair->new(),
             codon2start => Bio::Tiny::Translator::Table::Pair->new(),
             aa2codons   => Bio::Tiny::Translator::Table::Pair->new()
@@ -154,6 +154,7 @@ sub new {
             }
         }
     );
+
     # Get the beginning DATA so that we can seek back to it
     my $start_pos = tell DATA;
 
@@ -275,18 +276,14 @@ sub custom {
 
     $self->id($id);
 
-    # Extract each name, massage, and push it onto names array
-    while ( $names =~ /"(.+?)"/gis ) {
-        my @names = split( /;/, $1 );
-        local $_;
-        foreach (@names) {
-            s/^\s+//;
-            s/\s+$//;
-            s/\n/ /g;
-            s/\s{2,}/ /g;
-            push @{ $self->names }, $_ if $_;
-        }
-    }
+    # get names from name string
+    @{ $self->names } = grep { $_ } map {
+        s/^\s+//;
+        s/\s+$//;
+        s/\n/ /g;
+        s/\s{2,}/ /g;
+        $_
+    } map { split /;/ } ( $names =~ /"(.+?)"/gis );
 
     # Get all the table pairs so we don't have to keep using accessors
     my $codon2aa    = $self->codon2aa;
@@ -538,7 +535,6 @@ sub string {
     # Generate the names string
     my $names = join( '; ', @{ $self->names } );
 
-
     # Make the hashes of amino acid to codons and start amino acids to codons
     my %aa2codons = %{ $self->aa2codons->forward };
 
@@ -576,7 +572,7 @@ sub string {
         }
     }
     foreach my $aa ( sort keys %aa2codons ) {
-        next if ($ambiguous_map{$aa});
+        next if ( $ambiguous_map{$aa} );
         foreach my $codon ( @{ $aa2codons{$aa} } ) {
             push @residues, $aa;
             push @starts,   '-';
@@ -585,7 +581,7 @@ sub string {
     }
     foreach my $aa ( sort keys %ambiguous_map ) {
         my $group = $aa2codons{$aa} or next;
-        foreach my $codon ( @$group ) {
+        foreach my $codon (@$group) {
             push @residues, $aa;
             push @starts,   '-';
             for my $i ( 1 .. 3 ) { push @{ $bases[ -$i ] }, chop $codon }
@@ -600,8 +596,7 @@ sub string {
         'ncbieaa  "' . join( '', @residues ) . '",',
         'sncbieaa "' . join( '', @starts ) . '",',
         map( { "-- Base$_  " . join( '', @{ $bases[ $_ - 1 ] } ) . '"' }
-            ( 1 .. 3 )
-        ),
+            ( 1 .. 3 ) ),
         '}'
     );
 
