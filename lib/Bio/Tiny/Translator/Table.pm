@@ -31,7 +31,7 @@ use strict;
 use warnings;
 
 use base qw(Class::Accessor::Fast);
-__PACKAGE__->mk_accessors(qw(id names _codon2aa _codon2start _aa2codons));
+__PACKAGE__->mk_accessors(qw(id names codon2aa codon2start aa2codons));
 
 use Params::Validate;
 
@@ -67,9 +67,9 @@ sub _new {
     shift->SUPER::new(
         {
             names        => [],
-            _codon2aa    => Bio::Tiny::Translator::Table::Pair->new(),
-            _codon2start => Bio::Tiny::Translator::Table::Pair->new(),
-            _aa2codons   => Bio::Tiny::Translator::Table::Pair->new()
+            codon2aa    => Bio::Tiny::Translator::Table::Pair->new(),
+            codon2start => Bio::Tiny::Translator::Table::Pair->new(),
+            aa2codons   => Bio::Tiny::Translator::Table::Pair->new()
         }
     );
 }
@@ -289,9 +289,9 @@ sub custom {
     }
 
     # Get all the table pairs so we don't have to keep using accessors
-    my $codon2aa    = $self->_codon2aa;
-    my $codon2start = $self->_codon2start;
-    my $aa2codons   = $self->_aa2codons;
+    my $codon2aa    = $self->codon2aa;
+    my $codon2start = $self->codon2start;
+    my $aa2codons   = $self->aa2codons;
 
     # Chop is used to efficiently get the last character from each string
     while ( my $residue = uc( chop $residues ) ) {
@@ -408,14 +408,14 @@ sub add_translation {
     }
 
     # Store residue in the starts or regular translation table.
-    my $table = $p{start} ? '_codon2start' : '_codon2aa';
+    my $table = $p{start} ? 'codon2start' : 'codon2aa';
     $table = $self->$table;
 
     $table->store( $residue, $$codon_ref, $$rc_codon_ref );
 
     # Store the reverse lookup
     $residue = '+' if ( $p{start} );
-    $self->_aa2codons->push( $residue, $$codon_ref, $$rc_codon_ref );
+    $self->aa2codons->push( $residue, $$codon_ref, $$rc_codon_ref );
 }
 
 =head2 bootstrap
@@ -435,10 +435,10 @@ sub bootstrap {
     foreach my $n1 (@all_nucleotides) {
         foreach my $n2 (@all_nucleotides) {
             foreach my $n3 (@all_nucleotides) {
-                $self->_unroll( $n1 . $n2 . $n3, $self->_codon2aa->[0] );
+                $self->_unroll( $n1 . $n2 . $n3, $self->codon2aa->[0] );
                 $self->_unroll(
                     $n1 . $n2 . $n3,
-                    $self->_codon2start->[0],
+                    $self->codon2start->[0],
                     { start => 1 }
                 );
             }
@@ -540,9 +540,9 @@ sub string {
 
 
     # Make the hashes of amino acid to codons and start amino acids to codons
-    my %aa2codons = %{ $self->_aa2codons->forward };
+    my %aa2codons = %{ $self->aa2codons->forward };
 
-    my $codon2start = $self->_codon2start->forward;
+    my $codon2start = $self->codon2start->forward;
     my %start2codons;
 
     foreach my $start_codon ( @{ $aa2codons{'+'} } ) {

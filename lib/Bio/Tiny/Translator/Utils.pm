@@ -127,7 +127,7 @@ sub codons {
     else { $residue = uc $residue }
 
     # Get the codons array or set it to the empty array
-    my $codons = $self->table->_aa2codons->[$rc]->{$residue} || [];
+    my $codons = $self->table->aa2codons->[$rc]->{$residue} || [];
 
     # Return a copy of the arrayref so that the internal array can't get
     # modified

@@ -103,8 +103,8 @@ sub prepare {
     $self->{rc}        = $rc;
 
     # The translation tables are keyed on $rc in Bio::Tiny::Translator::Table
-    $self->{table}  = $table->_codon2aa->[$rc];
-    $self->{starts} = $table->_codon2start->[$rc];
+    $self->{table}  = $table->codon2aa->[$rc];
+    $self->{starts} = $table->codon2start->[$rc];
 }
 
 =head2 endpoints
