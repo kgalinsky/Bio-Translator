@@ -1,3 +1,10 @@
+package Bio::Tiny::Translator;
+
+use strict;
+use warnings;
+
+use version; our $VERSION = qv('0.6.0');
+
 =head1 NAME
 
 Bio::Tiny::Translator - Translate DNA sequences
@@ -49,13 +56,6 @@ Parameter validation uses L<Params::Validate> which introduces overhead but can
 be disabled. See the C<Params::Validate> documentation for more information.
 
 =cut
-
-package Bio::Tiny::Translator;
-
-use strict;
-use warnings;
-
-use version; our $VERSION = qv('0.6.0');
 
 use base qw(Class::Accessor::Fast);
 __PACKAGE__->mk_accessors(qw(table base));

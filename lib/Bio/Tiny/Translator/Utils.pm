@@ -1,9 +1,7 @@
-# Bio::Tiny::Translator:Utils
-#
-# $Author$
-# $Date$
-# $Revision$
-# $HeadURL$
+package Bio::Tiny::Translator::Utils;
+
+use strict;
+use warnings;
 
 =head1 NAME
 
@@ -32,11 +30,6 @@ See Bio::Tiny::Translator for more info. Utils contains utilites that require
 knowledge of the translation table.
 
 =cut
-
-package Bio::Tiny::Translator::Utils;
-
-use strict;
-use warnings;
 
 use base qw(Bio::Tiny::Translator);
 __PACKAGE__->mk_accessors(qw( _regexes ));

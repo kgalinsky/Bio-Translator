@@ -1,9 +1,7 @@
-# Bio::Tiny::Translator::Table
-#
-# $Author$
-# $Date$
-# $Revision$
-# $HeadURL$
+package Bio::Tiny::Translator::Table;
+
+use strict;
+use warnings;
 
 =head1 NAME
 
@@ -24,11 +22,6 @@ Bio::Tiny::Translator::Table - Translation table for Bio::Tiny::Translator
 
 
 =cut
-
-package Bio::Tiny::Translator::Table;
-
-use strict;
-use warnings;
 
 use base qw(Class::Accessor::Fast);
 __PACKAGE__->mk_accessors(qw(id names codon2aa codon2start aa2codons));
