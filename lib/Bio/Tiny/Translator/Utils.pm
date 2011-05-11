@@ -260,11 +260,11 @@ sub find {
 
 =head2 getORF
 
-    my $orf_hash = $translator->getORF( $seq_ref );
-    my $orf_hash = $translator->getORF( $seq_ref, \%params );
+    my $orf_arrayref = $translator->getORF( $seq_ref );
+    my $orf_arrayref = $translator->getORF( $seq_ref, \%params );
 
-This will get the longest region between stops and return the strand, lower and
-upper bounds, inclusive. Valid options for the params hash are:
+This will get the longest region between stops and return lower and
+upper bounds, and the strand. Valid options for the params hash are:
 
     strand:     0, 1 or -1; default = 0 (meaning search both strands)
     lower:      integer between 0 and length; default = 0
@@ -281,11 +281,7 @@ Suppose the following was the longest ORF:
 
 This will return:
 
-    {
-        strand => 1,
-        lower  => 3,
-        upper  => 9
-    }
+    [ 3, 9, 1 ]
 
 You can also specify which strand you are looking for the ORF to be on.
 
@@ -300,11 +296,7 @@ complete codon. For example, if the following was the longest ORF:
 
 getORF will return:
 
-    {
-        strand => 1,
-        lower  => 1,
-        upper  => 10
-    }
+    [ 1, 10, 1 ]
 
 The distance between lower and upper will always be a multiple of 3. This is to
 make it clear which frame the ORF is in. The resulting hash may be passed to
@@ -339,11 +331,7 @@ sub getORF {
     my %p = validate( @p, {%VAL_SEARCH_STRAND} );
 
     # Initialize the longest ORF.
-    my %ORF = (
-        strand => 0,
-        lower  => $lower,
-        upper  => $lower
-    );
+    my @ORF = ( $lower, $lower, 0 );
 
     # Go through each strand which we are looking in
     foreach my $strand ( $p{strand} == 0 ? ( -1, 1 ) : $p{strand} ) {
@@ -368,13 +356,13 @@ sub getORF {
             last if ( $cur_upper > $upper );
 
             # Call our helper function
-            $self->_getORF( $strand, \@lowers, $cur_upper, $lower, \%ORF );
+            $self->_getORF( $strand, \@lowers, $cur_upper, $lower, \@ORF );
         }
 
         # Now evaluate for the last three ORFS
         foreach my $i ( 0 .. 2 ) {
             my $cur_upper = $upper - $i;
-            $self->_getORF( $strand, \@lowers, $cur_upper, $lower, \%ORF );
+            $self->_getORF( $strand, \@lowers, $cur_upper, $lower, \@ORF );
         }
 
         # NOTE: Perl's regular expression engine could be faster than code
@@ -383,7 +371,7 @@ sub getORF {
         # m/(?=(^|$stop)((.{3})*)($stop|$))/g
     }
 
-    return \%ORF;
+    return \@ORF;
 }
 
 # Helper function for getORF above.
@@ -395,14 +383,7 @@ sub _getORF {
     my $frame = ( $upper - $offset ) % 3;
 
     # Compare if this is better than the longest ORF
-    $self->_compare_regions(
-        $longest,
-        {
-            strand => $strand,
-            lower  => $lowers->[$frame],
-            upper  => $upper
-        }
-    );
+    $self->_compare_regions( $longest, [ $lowers->[$frame], $upper, $strand ] );
 
     # Mark the lower bound for this frame
     $lowers->[$frame] = $upper;
@@ -413,7 +394,7 @@ sub _getORF {
     my $cds_ref = $translator->getCDS( $seq_ref );
     my $cds_ref = $translator->getCDS( $seq_ref, \%params );
 
-This will return the strand and boundaries of the longest CDS.
+Return the strand and boundaries of the longest CDS similar to getORF.
 
  0 1 2 3 4 5 6 7 8 9 10
   A T G A A A T A A G
@@ -422,11 +403,7 @@ This will return the strand and boundaries of the longest CDS.
 
 Will return:
 
-    {
-        strand => 1,
-        lower  => 0,
-        upper  => 9
-    }
+    [ 0, 9, 1 ]
 
 Valid options for the params hash are:
 
@@ -479,11 +456,7 @@ sub getCDS {
     );
 
     # Initialize the longest CDS. Length is -1.
-    my %CDS = (
-        strand => 0,
-        lower  => 0,
-        upper  => -1
-    );
+    my @CDS = ( 0, -1, 0 );
 
     foreach my $strand ( $p{strand} == 0 ? ( -1, 1 ) : $p{strand} ) {
         my $lower_regex = $self->regex( 'lower', { strand => $strand } );
@@ -544,7 +517,7 @@ sub getCDS {
                 $position += 3;
                 last if ( $position > $upper );
 
-                $self->_getCDS( $strand, \@lowers, $position, $lower, \%CDS );
+                $self->_getCDS( $strand, \@lowers, $position, $lower, \@CDS );
             }
         }
 
@@ -558,11 +531,11 @@ sub getCDS {
 
         foreach my $i ( 0 .. 2 ) {
             my $end_upper = $upper - $i;
-            $self->_getCDS( $strand, \@lowers, $end_upper, $lower, \%CDS );
+            $self->_getCDS( $strand, \@lowers, $end_upper, $lower, \@CDS );
         }
     }
 
-    return \%CDS;
+    return \@CDS;
 }
 
 # Helper function for getCDS above.
@@ -579,25 +552,19 @@ sub _getCDS {
     # Compare if this is better than the longest ORF
     $self->_compare_regions(
         $longest,
-        {
-            strand => $strand,
-            lower  => $lowers->[$frame],
-            upper  => $upper
-        }
+        [ $lowers->[$frame], $upper, $strand ]
     );
 
     # Mark the lower bound for this frame
     undef $lowers->[$frame] if ( $strand == 1 );
 }
 
-# If the current ORF is longer than the previously stored longest bounds, store
-# the current ORF
+# If the current range is longer than the longest range, store the range
 sub _compare_regions {
     my $self = shift;
     my ( $longest, $current ) = @_;
-    %$longest = %$current
-      if ( $longest->{upper} - $longest->{lower} <
-        $current->{upper} - $current->{lower} );
+    @$longest = @$current
+      if ( $longest->[1] - $longest->[0] < $current->[1] - $current->[0] );
 }
 
 =head2 nonstop
