@@ -5,7 +5,7 @@ use warnings;
 
 =head1 NAME
 
-Bio::Tiny::Translator::Table - Translation table for Bio::Tiny::Translator
+Bio::Tiny::Translator::Table - translation table
 
 =head1 SYNOPSIS
 
@@ -27,6 +27,7 @@ use base qw(Class::Accessor::Fast);
 __PACKAGE__->mk_accessors(qw(id names codon2aa codon2start aa2codons));
 
 use Params::Validate;
+use Carp;
 
 use Bio::Tiny::Util::DNA qw(
   %degenerate2nucleotides
@@ -54,8 +55,11 @@ our $DEFAULT_ID        = 1;
 our $DEFAULT_TYPE      = 'id';
 our $DEFAULT_BOOTSTRAP = 1;
 
-# Helper constructor. Instantiates the object with arrayrefs and hashrefs in
-# the right places
+=head1 CONSTRUCTORS
+
+=cut
+
+# helper constructor
 sub _new {
     shift->SUPER::new(
         {
@@ -66,10 +70,6 @@ sub _new {
         }
     );
 }
-
-=head1 CONSTRUCTORS
-
-=cut
 
 =head2 new
 
@@ -172,8 +172,8 @@ sub new {
     return $class->custom( \$_, { bootstrap => 0 } ) if ($found);
 
     # Internal table not matched.
-    ERROR("Table with $p{type} of $id not found");
-    return undef;
+    carp("Table with $p{type} of $id not found");
+    return;
 }
 
 =head2 custom()
@@ -194,9 +194,6 @@ those of the internal tables:
     -- Base1  AAAAAAAAAA...
     -- Base2  AAAACCCCGG...
     -- Base3  ACGTACTGAC...
-
-This module is a bit more permissive than that; see the $TABLE_REGEX regular
-expression to see that actual format.
 
 Examples:
 
@@ -237,9 +234,11 @@ sub custom {
     # table_ref is required and must be a refrerence to a scalar
     ( $table_ref, $p[0] ) = validate_pos(
         @_,
-        { type => Params::Validate::SCALARREF },
+        { type => Params::Validate::SCALARREF | Params::Validate::SCALAR },
         { type => Params::Validate::HASHREF, default => {} }
     );
+
+    $table_ref = \$table_ref unless ( ref $table_ref );
 
     # get the bootstrap parameter
     my %p = validate(
@@ -253,17 +252,9 @@ sub custom {
     );
 
     # Match the table or return undef.
-    unless ( $$table_ref =~ $TABLE_REGEX ) {
-        ERROR( 'Translation table is in invalid format', $$table_ref );
-        return undef;
-    }
-
-    # Store the data that has been stripped using descriptive names;
-    my $names    = $1;
-    my $id       = $2;
-    my $residues = $3;
-    my $starts   = $4;
-    my @bases    = ( $5, $6, $7 );
+    my ( $names, $id, $residues, $starts, @bases ) =
+         ( $$table_ref =~ $TABLE_REGEX )
+      or ( carp('Translation table is in invalid format') && return );
 
     my $self = $class->_new();
 
@@ -287,25 +278,25 @@ sub custom {
     while ( my $residue = uc( chop $residues ) ) {
         my $start = uc( chop $starts );
 
-        my @nucleotides;
-        foreach my $i ( 0 .. 2 ) {
+        # get the possible nucleotides each position in the codon
+        my @nucleotides = map {
+            my $base = chop;
+            [
+                $base,
 
-            # Get the base
-            my $base = chop( $bases[$i] );
-            $nucleotides[$i][0] = $base;
-
-            # If the base is a degenerate
-            if ( $base =~ m/$degenerate_match/ ) {
-
-                # Store the nucleotides it can be
-                push @{ $nucleotides[$i] }, @{ $degenerate2nucleotides{$base} };
-
-                # Store the other degenerates it can be
-                if ( my $hierarchy = $degenerate_hierarchy{$base} ) {
-                    push @{ $nucleotides[$i] }, @$hierarchy;
-                }
-            }
-        }
+                # append degenerates
+                (
+                    $degenerate2nucleotides{$base}
+                    ? @{ $degenerate2nucleotides{$base} }
+                    : ()
+                ),
+                (
+                    $degenerate_hierarchy{$base}
+                    ? @{ $degenerate_hierarchy{$base} }
+                    : ()
+                )
+            ]
+        } @bases;
 
         # Add each potential codon to the translation table
         foreach my $base1 ( @{ $nucleotides[0] } ) {
@@ -353,16 +344,14 @@ Examples:
 
     # THESE AREN'T REAL!!!
     $translator->add_translation( 'ABA', 'G' );
-    $translator->add_translation( 'ABA', 'M', 1 );
+    $translator->add_translation( 'ABA', 'M', { start => 1, strand => -1 } );
 
 =cut
 
 sub add_translation {
     my $self = shift;
 
-    my ( $codon, $residue, @p );
-
-    ( $codon, $residue, $p[0] ) = validate_pos(
+    my ( $codon, $residue, @p ) = validate_pos(
         @_,
         { regex => qr/^${all_nucleotide_match}{3}$/ },
         { regex => qr/^$aa_match$/ },
@@ -385,17 +374,10 @@ sub add_translation {
         }
     );
 
-    my $codon_ref;
-    my $rc_codon_ref;
-
-    if ( $p{strand} == 1 ) {
-        $codon_ref    = \$codon;
-        $rc_codon_ref = reverse_complement( \$codon );
-    }
-    else {
-        $rc_codon_ref = \$codon;
-        $codon_ref    = reverse_complement( \$codon );
-    }
+    my ( $codon_ref, $rc_codon_ref ) =
+        ( $p{strand} == 1 )
+      ? ( \$codon, reverse_complement( \$codon ) )
+      : ( reverse_complement( \$codon ), \$codon );
 
     # Store residue in the starts or regular translation table.
     my $table = $p{start} ? 'codon2start' : 'codon2aa';
@@ -450,9 +432,7 @@ sub _unroll {
     return $table->{$codon} if ( $table->{$codon} );
 
     # Check for base case: no degenerate nucleotides; we can't unroll further.
-    unless ( $codon =~ /($degenerate_match)/ ) {
-        return undef;
-    }
+    return unless ( $codon =~ /($degenerate_match)/ );
 
     my $consensus;
     my $nuc = $1;
@@ -468,7 +448,7 @@ sub _unroll {
         # If the new_codon didn't come to a consensus, or if the translation
         # isn't defined for new_codon in a custom translation table, return
         # undef.
-        return undef unless ( defined $residue );
+        return unless ( defined $residue );
 
         # If consensus isn't set, set it to the current residue.
         $consensus = $residue unless ($consensus);
@@ -488,7 +468,7 @@ sub _unroll {
                 $consensus = $ambiguous_forward{$consensus};
             }
             else {
-                return undef;
+                return;
             }
         }
     }
@@ -639,8 +619,6 @@ sub string {
             $self->[$i]->{$residue} = [ sort { $a cmp $b } keys %seen ];
         }
     }
-
-    1;
 }
 
 1;
@@ -651,9 +629,9 @@ These are the original translation tables. The translation tables used by this
 module have been boostrapped and compacted. They were first expanded to include
 translations for degenerate nucleotides and allow ambiguous amino acids to be
 the targets of translation (e.g. every effort has been made to give a
-translation that isn't "X"). Then, the tables were had reduntant columns
-removed; any codon that was implied by the presence of another codon containing
-degenerate nucleotides was removed.
+translation that isn't "X"). Then, the tables had reduntant columns removed;
+any codon implied by the presence of degenerate-nucleotide-containing codon was
+removed.
 
     {
     name "Standard" ,
@@ -822,15 +800,9 @@ degenerate nucleotides was removed.
 
 Kevin Galinsky, <kgalinsky plus cpan at gmail dot com>
 
-=head1 COPYRIGHT & LICENSE
-
-Copyright 2008-2009 J. Craig Venter Institute, all rights reserved.
-
-This program is free software; you can redistribute it and/or modify it
-under the same terms as Perl itself.
-
 =cut
 
+# keep translation tables in the __DATA__ section
 __DATA__
 
 {
