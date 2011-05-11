@@ -44,7 +44,6 @@ use Bio::Tiny::Util::AA qw( $aa_match );
 # Default values
 our $DEFAULT_STRAND        = 1;
 our $DEFAULT_SEARCH_STRAND = 0;
-our $DEFAULT_SANITIZED     = 0;
 
 # Precompiled regular expressions for SPOT rule and to save time
 our $BOOLEAN_REGEX       = qr/^[01]$/;
@@ -100,7 +99,7 @@ sub codons {
         { type => Params::Validate::HASHREF, default => {} }
     );
 
-    my %p = validate( @p, {%VAL_STRAND} );
+    my %p = validate( @p, { strand => $VAL_STRAND } );
 
     # Set the reverse comlement variable
     my $rc = $p{strand} == 1 ? 0 : 1;
@@ -161,12 +160,7 @@ sub regex {
         @p,
         {
 
-            # Make sure strand is 1 or -1 and set default
-            strand => {
-                default => $DEFAULT_STRAND,
-                regex   => qr/^[+-]?1$/,
-                type    => Params::Validate::SCALAR
-            }
+            strand => $VAL_STRAND
         }
     );
 
@@ -217,10 +211,12 @@ sub find {
 
     my ( $seq_ref, $residue, @p ) = validate_pos(
         @_,
-        { type => Params::Validate::SCALARREF },
+        { type => Params::Validate::SCALARREF | Params::Validate::SCALAR },
         { type => Params::Validate::SCALAR },
         { type => Params::Validate::HASHREF, default => {} }
     );
+
+    $seq_ref = \$seq_ref unless ( ref $seq_ref );
 
     # Strand is unnecessary for now. Uncomment this section when other options
     # are added to find.
@@ -261,7 +257,6 @@ upper bounds, and the strand. Valid options for the params hash are:
     strand:     0, 1 or -1; default = 0 (meaning search both strands)
     lower:      integer between 0 and length; default = 0
     upper:      integer between 0 and length; default = length
-    sanitized:  0 or 1; default = 0
 
 Lower and upper are used to specify bounds between which you are searching.
 Suppose the following was the longest ORF:
@@ -313,13 +308,16 @@ sub getORF {
 
     my ( $seq_ref, @p ) = validate_seq_params(@_);
 
-    my ($sanitized) = validate_sanitized(@p);
-    $seq_ref = cleanDNA($seq_ref) unless ($sanitized);
-
-    my ( $lower, $upper ) = validate_lower_upper( $seq_ref, @p );
-
-    my %p = validate( @p, {%VAL_SEARCH_STRAND} );
-
+    my %p = validate(
+        @p,
+        {
+            lower => $VAL_NON_NEG_INT,
+            upper => $VAL_NON_NEG_INT,
+                       strand => $VAL_SEARCH_STRAND,
+        }
+    );
+    my ( $lower, $upper ) = validate_lower_upper( delete( @p{qw/ lower upper /} ), $seq_ref );
+    
     # Initialize the longest ORF.
     my @ORF = ( $lower, $lower, 0 );
 
@@ -401,7 +399,6 @@ Valid options for the params hash are:
     lower:      integer between 0 and length; default = 0
     upper:      integer between 0 and length; default = length
     strict:     0, 1 or 2;  default = 1
-    sanitized:  0 or 1; default = 0
 
 Strict controls how strictly getCDS functions. There are 3 levels of
 strictness, enumerated 0, 1 and 2. 2 is the most strict, and in that mode, a
@@ -422,26 +419,20 @@ Example:
 sub getCDS {
     my $self = shift;
 
-    my ( $seq_ref, @p ) = validate_seq_params(@_);
-
-    my $sanitized = validate_sanitized(@p);
-    $seq_ref = cleanDNA($seq_ref) unless ($sanitized);
-
-    my ( $lower, $upper ) = validate_lower_upper( $seq_ref, @p );
+        my ( $seq_ref, @p ) = validate_seq_params(@_);
 
     my %p = validate(
         @p,
         {
-            %VAL_SEARCH_STRAND,
-
-            # Verify that strict is 0, 1 or 2, default to 1
-            strict => {
-                default => 1,
-                regex   => $REGEX_012,
-                type    => Params::Validate::SCALAR
-            }
+            lower  => $VAL_NON_NEG_INT,
+            upper  => $VAL_NON_NEG_INT,
+            strand => $VAL_SEARCH_STRAND,
+            strict => {%$VAL_OFFSET, default => 1 },
         }
     );
+
+    my ( $lower, $upper ) =
+      validate_lower_upper( delete( @p{qw/ lower upper /} ), $seq_ref );
 
     # Initialize the longest CDS. Length is -1.
     my @CDS = ( 0, -1, 0 );
@@ -538,10 +529,7 @@ sub _getCDS {
     return unless ( defined $lowers->[$frame] );
 
     # Compare if this is better than the longest ORF
-    $self->_compare_regions(
-        $longest,
-        [ $lowers->[$frame], $upper, $strand ]
-    );
+    $self->_compare_regions( $longest, [ $lowers->[$frame], $upper, $strand ] );
 
     # Mark the lower bound for this frame
     undef $lowers->[$frame] if ( $strand == 1 );
@@ -574,7 +562,6 @@ numbered -3, -2, -1, 1, 2 and 3.
 Valid options for the params hash are:
 
     strand:     0, 1 or -1; default = 0 (meaning search both strands)
-    sanitized:  0 or 1; default = 0
 
 Example:
 
@@ -589,10 +576,7 @@ sub nonstop {
 
     my ( $seq_ref, @p ) = validate_seq_params(@_);
 
-    my $sanitized = validate_sanitized(@p);
-    $seq_ref = cleanDNA($seq_ref) unless ($sanitized);
-
-    my %p = validate( @p, {%VAL_SEARCH_STRAND} );
+    my %p = validate( @p, { strand => $VAL_SEARCH_STRAND } );
 
     # Go through both strands
     my @frames;
@@ -620,12 +604,5 @@ sub nonstop {
 =head1 AUTHOR
 
 Kevin Galinsky, <kgalinsky plus cpan at gmail dot com>
-
-=head1 COPYRIGHT & LICENSE
-
-Copyright 2008-2009 J. Craig Venter Institute, all rights reserved.
-
-This program is free software; you can redistribute it and/or modify it
-under the same terms as Perl itself.
 
 =cut

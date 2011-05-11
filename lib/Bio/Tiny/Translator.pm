@@ -64,19 +64,15 @@ use Carp;
 use Params::Validate;
 
 use Bio::Tiny::Translator::Table;
+use Bio::Tiny::Translator::Validations ':validations';
 
-#use Bio::Tiny::Translator::Base;
-#use Bio::Tiny::Translator::Validations qw(:validations);
-
-use Bio::Tiny::Util::DNA qw/ $all_nucleotide_match cleanDNA /;
+use Bio::Tiny::Util::DNA qw/ $all_nucleotide_match /;
 
 =head1 CONSTRUCTORS
 
 =cut
 
-sub _new {
-    shift->SUPER::new( { table => shift } );
-}
+sub _new { shift->SUPER::new( { table => shift } ) }
 
 =head2 new
 
@@ -199,73 +195,39 @@ Examples:
 sub translate {
     my $self = shift;
 
-    my ( $seq_ref, @p ) = validate_pos(
-        @_,
-        { type    => Params::Validate::SCALARREF | Params::Validate::SCALAR },
-        { default => {}, type => Params::Validate::HASHREF }
-    );
+    my ( $seq_ref, @p ) = validate_seq_params(@_);
 
-    $seq_ref = \$seq_ref unless ( ref $seq_ref );
-
-    # perform basic parameter validation
     my %p = validate(
         @p,
         {
-            lower => {
-                default   => 0,
-                type      => Params::Validate::SCALAR,
-                regex     => qr/^\d+$/,
-                callbacks => {
-                    '0 <= lower' => sub { 0 <= $_[0] }
-                },
-            },
-            upper => {
-                default   => length($$seq_ref),
-                type      => Params::Validate::SCALAR,
-                regex     => qr/^\d+$/,
-                callbacks => {
-                    'upper <= seq_length' => sub { $_[0] <= length($$seq_ref) }
-                },
-            },
-            strand => {
-                default => 1,
-                type    => Params::Validate::SCALAR,
-                regex   => qr/^[+-]?1$/,
-            },
-            start => {
-                default => 1,
-                type    => Params::Validate::SCALAR,
-            },
-            offset => {
-                default => 0,
-                type    => Params::Validate::SCALAR,
-                regex   => qr/^[012]$/,
-            },
+            lower  => $VAL_NON_NEG_INT,
+            upper  => $VAL_NON_NEG_INT,
+            strand => $VAL_STRAND,
+            start  => $VAL_START,
+            offset => $VAL_OFFSET,
         }
     );
 
-    my ( $lower, $upper, $strand, $start, $offset ) =
-      @p{qw/ lower upper strand start offset /};
+    my ( $lower, $upper ) =
+      validate_lower_upper( delete( @p{qw/ lower upper /} ), $seq_ref );
 
-    # do we need to do reverse_complement?
-    my $rc = $strand == -1 ? 1 : 0;
+    # adjust lower bound
+    $lower +=
+      $p{strand} == -1 ? ( $upper - $lower - $p{offset} ) % 3 : $p{offset};
 
-    # do some final checks on lower upper bound and adjust lower bound
-    croak 'lower > upper' if ( $lower > $upper );
-    $lower += $rc ? ( $upper - $offset - $lower ) % 3 : $offset;
-
-    return $self->_translate( $seq_ref, $lower, $upper, $strand, $start );
+    return $self->_translate( $seq_ref, $lower, $upper,
+        @p{qw/ strand start /} );
 }
 
 =head2 translate_lus
 
-    $pep_ref = $translator->translate_lus( $seq_ref, $range, \%params );
-
+  $pep_ref = $translator->translate_lus( $seq_ref, $range, \%params );
 =cut
 
 sub translate_lus {
     my $self = shift;
 
+    # first validation pass
     my ( $seq_ref, $r, @p ) = validate_pos(
         @_,
         { type    => Params::Validate::SCALARREF | Params::Validate::SCALAR },
@@ -275,58 +237,27 @@ sub translate_lus {
 
     $seq_ref = \$seq_ref unless ( ref $seq_ref );
 
-    my ( $lower, $upper, $strand ) = validate_pos(
-        @$r,
-        {
-            default   => 0,
-            type      => Params::Validate::SCALAR,
-            regex     => qr/^\d+$/,
-            callbacks => {
-                '0 <= lower' => sub { 0 <= $_[0] }
-            },
-        },
-        {
-            default   => length($$seq_ref),
-            type      => Params::Validate::SCALAR,
-            regex     => qr/^\d+$/,
-            callbacks => {
-                'upper <= seq_length' => sub { $_[0] <= length($$seq_ref) }
-            },
-        },
-        {
-            default => 1,
-            type    => Params::Validate::SCALAR,
-            regex   => qr/^[+-]?1$/,
-        },
-    );
+    # validate range
+    my ( $lower, $upper, $strand ) =
+      validate_pos( @$r, $VAL_NON_NEG_INT, $VAL_NON_NEG_INT, $VAL_STRAND );
+    ( $lower, $upper ) = validate_lower_upper( $lower, $upper, $seq_ref );
 
-    # perform basic parameter validation
+    # validate options
     my %p = validate(
         @p,
         {
-            start => {
-                default => 1,
-                type    => Params::Validate::SCALAR,
-            },
-            offset => {
-                default => 0,
-                type    => Params::Validate::SCALAR,
-                regex   => qr/^[012]$/,
-            },
+            start  => $VAL_START,
+            offset => $VAL_OFFSET,
         }
     );
 
-    my ( $start, $offset ) =
-      @p{qw/ start offset /};
+    # adjust lower bound
+    $lower +=
+      $strand == -1
+      ? ( $upper - $p{offset} - $lower ) % 3
+      : $p{offset};
 
-    # do we need to do reverse_complement?
-    my $rc = $strand == -1 ? 1 : 0;
-
-    # do some final checks on lower upper bound and adjust lower bound
-    croak 'lower > upper' if ( $lower > $upper );
-    $lower += $rc ? ( $upper - $offset - $lower ) % 3 : $offset;
-
-    return $self->_translate( $seq_ref, $lower, $upper, $strand, $start );
+    return $self->_translate( $seq_ref, $lower, $upper, $strand, $p{start} );
 }
 
 sub _translate {
@@ -347,7 +278,10 @@ sub _translate {
         my $start_aa =
           $self->table->codon2start->[$rc]
           { substr( $$seq_ref, $codon_starts[0], 3 ) };
-        if ($start_aa) { push @start_peptide, $start_aa; shift @codon_starts }
+        if ($start_aa) {
+            push @start_peptide, $start_aa;
+            shift @codon_starts;
+        }
     }
 
     # translate the rest of the peptide
@@ -390,20 +324,8 @@ sub translate_codon {
     my %p = validate(
         @p,
         {
-
-            # Make sure strand is 1 or -1
-            strand => {
-                default => 1,
-                regex   => qr/^[+-]?1$/,
-                type    => Params::Validate::SCALAR
-            },
-
-            # Make sure it is a boolean value
-            start => {
-                default => 0,
-                regex   => qr/^[01]$/,
-                type    => Params::Validate::SCALAR
-            }
+            strand => $VAL_STRAND,
+            start  => { %$VAL_START, default => 0 }
         }
     );
 
