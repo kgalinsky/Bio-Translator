@@ -240,7 +240,7 @@ sub translate {
                 default => 0,
                 type    => Params::Validate::SCALAR,
                 regex   => qr/^[012]$/,
-            }
+            },
         }
     );
 
@@ -253,6 +253,86 @@ sub translate {
     # do some final checks on lower upper bound and adjust lower bound
     croak 'lower > upper' if ( $lower > $upper );
     $lower += $rc ? ( $upper - $offset - $lower ) % 3 : $offset;
+
+    return $self->_translate( $seq_ref, $lower, $upper, $strand, $start );
+}
+
+=head2 translate_lus
+
+    $pep_ref = $translator->translate_lus( $seq_ref, $range, \%params );
+
+=cut
+
+sub translate_lus {
+    my $self = shift;
+
+    my ( $seq_ref, $r, @p ) = validate_pos(
+        @_,
+        { type    => Params::Validate::SCALARREF | Params::Validate::SCALAR },
+        { type    => Params::Validate::ARRAYREF },
+        { default => {}, type => Params::Validate::HASHREF }
+    );
+
+    $seq_ref = \$seq_ref unless ( ref $seq_ref );
+
+    my ( $lower, $upper, $strand ) = validate_pos(
+        @$r,
+        {
+            default   => 0,
+            type      => Params::Validate::SCALAR,
+            regex     => qr/^\d+$/,
+            callbacks => {
+                '0 <= lower' => sub { 0 <= $_[0] }
+            },
+        },
+        {
+            default   => length($$seq_ref),
+            type      => Params::Validate::SCALAR,
+            regex     => qr/^\d+$/,
+            callbacks => {
+                'upper <= seq_length' => sub { $_[0] <= length($$seq_ref) }
+            },
+        },
+        {
+            default => 1,
+            type    => Params::Validate::SCALAR,
+            regex   => qr/^[+-]?1$/,
+        },
+    );
+
+    # perform basic parameter validation
+    my %p = validate(
+        @p,
+        {
+            start => {
+                default => 1,
+                type    => Params::Validate::SCALAR,
+            },
+            offset => {
+                default => 0,
+                type    => Params::Validate::SCALAR,
+                regex   => qr/^[012]$/,
+            },
+        }
+    );
+
+    my ( $start, $offset ) =
+      @p{qw/ start offset /};
+
+    # do we need to do reverse_complement?
+    my $rc = $strand == -1 ? 1 : 0;
+
+    # do some final checks on lower upper bound and adjust lower bound
+    croak 'lower > upper' if ( $lower > $upper );
+    $lower += $rc ? ( $upper - $offset - $lower ) % 3 : $offset;
+
+    return $self->_translate( $seq_ref, $lower, $upper, $strand, $start );
+}
+
+sub _translate {
+    my $self = shift;
+    my ( $seq_ref, $lower, $upper, $strand, $start ) = @_;
+    my $rc = $strand == -1 ? 1 : 0;
 
     # get a list of codon start locations
     my @codon_starts =
@@ -272,7 +352,8 @@ sub translate {
 
     # translate the rest of the peptide
     my $codon2aa = $self->table->codon2aa->[$rc];
-    my $peptide = join '', @start_peptide, map { $_ || 'X' }
+    my $peptide = join '', @start_peptide,
+      map { $_ || 'X' }
       @$codon2aa{ map { substr $$seq_ref, $_, 3 } @codon_starts };
 
     return \$peptide;
