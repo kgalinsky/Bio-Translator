@@ -57,26 +57,25 @@ be disabled. See the C<Params::Validate> documentation for more information.
 
 =cut
 
-use base qw(Class::Accessor::Fast);
-__PACKAGE__->mk_accessors(qw(table base));
+use base 'Class::Accessor::Faster';
+__PACKAGE__->mk_accessors('table');
 
 use Carp;
 use Params::Validate;
 
 use Bio::Tiny::Translator::Table;
-use Bio::Tiny::Translator::Base;
-use Bio::Tiny::Translator::Validations qw(:validations);
 
-use Bio::Tiny::Util::DNA qw( $all_nucleotide_match cleanDNA );
+#use Bio::Tiny::Translator::Base;
+#use Bio::Tiny::Translator::Validations qw(:validations);
+
+use Bio::Tiny::Util::DNA qw/ $all_nucleotide_match cleanDNA /;
 
 =head1 CONSTRUCTORS
 
 =cut
 
 sub _new {
-    my $class = shift;
-    $class->SUPER::new(
-        { table => shift, base => Bio::Tiny::Translator::Base->new() } );
+    shift->SUPER::new( { table => shift } );
 }
 
 =head2 new
@@ -92,10 +91,7 @@ Bio::Tiny::Translator::Table for the full list of options.
 
 sub new {
     my $class = shift;
-    my $table = Bio::Tiny::Translator::Table->new(@_);
-
-    return undef unless ($table);
-
+    my $table = Bio::Tiny::Translator::Table->new(@_) or return;
     $class->_new($table);
 }
 
@@ -111,10 +107,7 @@ Bio::Tiny::Translator::Table for the full list of options.
 
 sub custom {
     my $class = shift;
-    my $table = Bio::Tiny::Translator::Table->custom(@_);
-
-    return undef unless ($table);
-
+    my $table = Bio::Tiny::Translator::Table->custom(@_) or return;
     $class->_new($table);
 }
 
@@ -130,28 +123,23 @@ The basic function of this module. Translate the specified region of the
 sequence (passed as $seq_ref) and return a reference to the translated string.
 The parameters are:
 
-    strand:     1 or -1; default = 1
-    lower:      integer between 0 and length; default = 0
-    upper:      integer between 0 and length; default = length
-    partial:    0 or 1; default = 0
-    sanitized:  0 or 1; default = 0
+    strand: [+-]?1; default = 1
+    lower:  integer between 0 and seq_length; default = 0
+    upper:  integer between 0 and seq_length; default = seq_length
+    start:  boolean
+    offset: [012]
 
-Translator uses interbase coordinates. lower and upper are optional parameters
-such that:
+Translator uses interbase coordinates. "lower" and "upper" are optional
+parameters such that:
 
-    0 <= lower <= upper <= length
+    0 <= lower <= upper <= seq_length
 
-Translator will log and die if those conditions are not satisfied.
+Translator will croak if those conditions are not satisfied.
 
-partial sets whether or not the sequence is a 5' partial. By default, partial
-is taken to be false  and the translator will try to translate the first codon
-as if it were a start codon. You can specify that the sequence is 5' partial
-and the translator will skip that step.
-
-sanitized is a flag translator know that this sequence has been stripped of
-whitespace and that all the codons are capitalized. Otherwise, translator will
-do that in order to speed up the translation process (see
-Bio::Tiny::Util::DNA::cleanDNA).
+"start" sets whether or not to try translating the first codon as a start
+codon. By default, translator will try to do this. "offset" allows you to
+specify an offset in addition to the lower and upper abounds and have
+Translator figure out the correct bound to offset from.
 
 To translate the following:
 
@@ -202,7 +190,7 @@ Examples:
             strand  => 1,
             lower   => 0,
             upper   => 8,
-            partial => 0
+            start   => 0
         }
     );
 
@@ -211,32 +199,82 @@ Examples:
 sub translate {
     my $self = shift;
 
-    my ( $seq_ref, @p ) = validate_seq_params(@_);
+    my ( $seq_ref, @p ) = validate_pos(
+        @_,
+        { type    => Params::Validate::SCALARREF | Params::Validate::SCALAR },
+        { default => {}, type => Params::Validate::HASHREF }
+    );
 
-    # Check the sanitized value separately
-    my $sanitized = validate_sanitized(@p);
+    $seq_ref = \$seq_ref unless ( ref $seq_ref );
 
-    # Clean the sequence and cache it
-    $seq_ref = cleanDNA($seq_ref) unless ($sanitized);
-    $self->base->set_seq($seq_ref);
+    # perform basic parameter validation
+    my %p = validate(
+        @p,
+        {
+            lower => {
+                default   => 0,
+                type      => Params::Validate::SCALAR,
+                regex     => qr/^\d+$/,
+                callbacks => {
+                    '0 <= lower' => sub { 0 <= $_[0] }
+                },
+            },
+            upper => {
+                default   => length($$seq_ref),
+                type      => Params::Validate::SCALAR,
+                regex     => qr/^\d+$/,
+                callbacks => {
+                    'upper <= seq_length' => sub { $_[0] <= length($$seq_ref) }
+                },
+            },
+            strand => {
+                default => 1,
+                type    => Params::Validate::SCALAR,
+                regex   => qr/^[+-]?1$/,
+            },
+            start => {
+                default => 1,
+                type    => Params::Validate::SCALAR,
+            },
+            offset => {
+                default => 0,
+                type    => Params::Validate::SCALAR,
+                regex   => qr/^[012]$/,
+            }
+        }
+    );
 
-    # Get lower and upper bounds
-    my ( $lower, $upper ) = validate_lower_upper( $seq_ref, @p );
+    my ( $lower, $upper, $strand, $start, $offset ) =
+      @p{qw/ lower upper strand start offset /};
 
-    my %p = validate( @p, { %VAL_STRAND, %VAL_PARTIAL, %VAL_OFFSET } );
+    # do we need to do reverse_complement?
+    my $rc = $strand == -1 ? 1 : 0;
 
-    # Return undef if the offset is bigger than the space between bounds
-    return undef if ( $upper <= $lower + $p{offset} );
+    # do some final checks on lower upper bound and adjust lower bound
+    croak 'lower > upper' if ( $lower > $upper );
+    $lower += $rc ? ( $upper - $offset - $lower ) % 3 : $offset;
 
-    # Set the partial status
-    $self->base->set_partial( $p{partial} );
+    # get a list of codon start locations
+    my @codon_starts =
+      map { $lower + 3 * $_ } ( 0 .. ( int( ( $upper - $lower ) / 3 ) - 1 ) );
+    @codon_starts = reverse @codon_starts if ($rc);
 
-    # Prepare for translation
-    $self->base->prepare( $p{strand}, $self->table );
-    $self->base->endpoints( $lower, $upper, $p{offset} );
+    return \'' unless (@codon_starts);
 
-    # Translate and convert the resulting arrayref to a string
-    my $peptide = join( '', @{ $self->base->translate() } );
+    # try to translate the start codon
+    my @start_peptide;
+    if ($start) {
+        my $start_aa =
+          $self->table->codon2start->[$rc]
+          { substr( $$seq_ref, $codon_starts[0], 3 ) };
+        if ($start_aa) { push @start_peptide, $start_aa; shift @codon_starts }
+    }
+
+    # translate the rest of the peptide
+    my $codon2aa = $self->table->codon2aa->[$rc];
+    my $peptide = join '', @start_peptide, map { $_ || 'X' }
+      @$codon2aa{ map { substr $$seq_ref, $_, 3 } @codon_starts };
+
     return \$peptide;
 }
 
