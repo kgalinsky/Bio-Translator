@@ -34,7 +34,6 @@ knowledge of the translation table.
 use base qw(Bio::Tiny::Translator);
 __PACKAGE__->mk_accessors(qw( _regexes ));
 
-use Log::Log4perl qw(:easy);
 use Params::Validate;
 
 use Bio::Tiny::Translator::Validations qw(:validations :regexes);
@@ -89,7 +88,6 @@ Valid options for the params hash are:
 =cut
 
 sub codons {
-    TRACE 'entering codons';
     my $self = shift;
 
     # Get the residue and the optional validation hash
@@ -124,7 +122,6 @@ sub codons {
 
     # Return a copy of the arrayref so that the internal array can't get
     # modified
-    TRACE 'leaving codons';
     return [@$codons];
 }
 
@@ -152,7 +149,6 @@ Valid options for the params hash are:
 =cut
 
 sub regex {
-    TRACE 'entering regex';
     my $self = shift;
 
     my ( $residue, @p ) = validate_pos(
@@ -180,7 +176,6 @@ sub regex {
     # Get the regex, and if it is defined, return it
     my $regex = $self->_regexes->[$rc]->{$residue};
     if ( defined $regex ) {
-        TRACE 'regular expression defined, leaving regex';
         return $regex;
     }
 
@@ -191,7 +186,6 @@ sub regex {
     # Cache the regex and return it
     $self->_regexes->[$rc]->{$residue} = $regex;
 
-    TRACE 'cached regular expression, leaving regex';
     return $regex;
 }
 
@@ -219,7 +213,6 @@ Valid options for the params hash are:
 =cut
 
 sub find {
-    TRACE 'entering find';
     my $self = shift;
 
     my ( $seq_ref, $residue, @p ) = validate_pos(
@@ -254,7 +247,6 @@ sub find {
         push @positions, pos($$seq_ref);
     }
 
-    TRACE 'leaving find';
     return \@positions;
 }
 
@@ -317,8 +309,6 @@ Example:
 =cut
 
 sub getORF {
-    TRACE 'entering getORF';
-
     my $self = shift;
 
     my ( $seq_ref, @p ) = validate_seq_params(@_);
@@ -430,8 +420,6 @@ Example:
 =cut
 
 sub getCDS {
-    TRACE('getCDS called');
-
     my $self = shift;
 
     my ( $seq_ref, @p ) = validate_seq_params(@_);
@@ -597,8 +585,6 @@ Example:
 =cut
 
 sub nonstop {
-    TRACE('nonstop called');
-
     my $self = shift;
 
     my ( $seq_ref, @p ) = validate_seq_params(@_);
