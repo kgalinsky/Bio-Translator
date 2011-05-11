@@ -57,7 +57,7 @@ be disabled. See the C<Params::Validate> documentation for more information.
 
 =cut
 
-use base 'Class::Accessor::Faster';
+use base 'Class::Accessor::Fast';
 __PACKAGE__->mk_accessors('table');
 
 use Carp;
