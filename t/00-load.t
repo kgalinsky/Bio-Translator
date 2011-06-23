@@ -1,12 +1,10 @@
 #!perl
 
-use Test::More tests => 4;
+use Test::More tests => 2;
 
 BEGIN {
-    use_ok('Bio::Tiny::Translator');
-    use_ok('Bio::Tiny::Translator::Utils');
-    use_ok('Bio::Tiny::Translator::Base');
-    use_ok('Bio::Tiny::Translator::Table');
+    use_ok('Bio::Translator');
+    use_ok('Bio::Translator::Utils');
 }
 
-diag("Testing Bio::Tiny::Translator $Bio::Tiny::Translator::VERSION, Perl $], $^X");
+diag("Testing Bio::Translator $Bio::Translator::VERSION, Perl $], $^X");
