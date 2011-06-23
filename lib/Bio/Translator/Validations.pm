@@ -1,11 +1,11 @@
-package Bio::Tiny::Translator::Validations;
+package Bio::Translator::Validations;
 
 use strict;
 use warnings;
 
 =head1 NAME
 
-Bio::Tiny::Translator::Validations - validation methods and objects
+Bio::Translator::Validations - validation methods and objects
 
 =cut
 

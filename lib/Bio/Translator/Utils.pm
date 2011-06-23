@@ -1,19 +1,19 @@
-package Bio::Tiny::Translator::Utils;
+package Bio::Translator::Utils;
 
 use strict;
 use warnings;
 
 =head1 NAME
 
-Bio::Tiny::Translator::Utils - Utilities that requrie a translation table
+Bio::Translator::Utils - Utilities that requrie a translation table
 
 =head1 SYNOPSIS
 
-    use Bio::Tiny::Translator::Utils;
+    use Bio::Translator::Utils;
 
-    # Same constructor as Bio::Tiny::Translator
-    my $utils = new Bio::Tiny::Translator::Utils();
-    my $utils = custom Bio::Tiny::Translator( \$custom_table );
+    # Same constructor as Bio::Translator
+    my $utils = new Bio::Translator::Utils();
+    my $utils = custom Bio::Translator( \$custom_table );
 
     my $codons = $utils->codons( $residue );
     my $regex  = $utils->regex( $residue );
@@ -26,20 +26,20 @@ Bio::Tiny::Translator::Utils - Utilities that requrie a translation table
 
 =head1 DESCRIPTION
 
-See Bio::Tiny::Translator for more info. Utils contains utilites that require
+See Bio::Translator for more info. Utils contains utilites that require
 knowledge of the translation table.
 
 =cut
 
-use base qw(Bio::Tiny::Translator);
+use base qw(Bio::Translator);
 __PACKAGE__->mk_accessors(qw( _regexes ));
 
 use Params::Validate;
 
-use Bio::Tiny::Translator::Validations qw(:validations :regexes);
+use Bio::Translator::Validations qw(:validations :regexes);
 
-use Bio::Tiny::Util::DNA qw( cleanDNA );
-use Bio::Tiny::Util::AA qw( $aa_match );
+use Bio::Util::DNA qw( cleanDNA );
+use Bio::Util::AA qw( $aa_match );
 
 # Default values
 our $DEFAULT_STRAND        = 1;

@@ -1,4 +1,4 @@
-Bio::Tiny::Translator tries to be a robust translator object featuring translation
+Bio::Translator tries to be a robust translator object featuring translation
 tables based off the the ones provided by NCBI
 (http://www.ncbi.nlm.nih.gov/Taxonomy/Utils/wprintgc.cgi).
 Key features include the ability to handle degenerate nucleotides and to
@@ -18,21 +18,21 @@ SUPPORT AND DOCUMENTATION
 
 After installing, you can find documentation for this module with the perldoc command.
 
-    perldoc Bio::Tiny::Translator
+    perldoc Bio::Translator
 
 You can also look for information at:
 
     Search CPAN
-        http://search.cpan.org/dist/Bio-Tiny-Translator
+        http://search.cpan.org/dist/Bio-Translator
 
     CPAN Request Tracker:
-        http://rt.cpan.org/NoAuth/Bugs.html?Dist=Bio-Tiny-Translator
+        http://rt.cpan.org/NoAuth/Bugs.html?Dist=Bio-Translator
 
     AnnoCPAN, annotated CPAN documentation:
-        http://annocpan.org/dist/Bio-Tiny-Translator
+        http://annocpan.org/dist/Bio-Translator
 
     CPAN Ratings:
-        http://cpanratings.perl.org/d/Bio-Tiny-Translator
+        http://cpanratings.perl.org/d/Bio-Translator
 
 COPYRIGHT AND LICENCE
 

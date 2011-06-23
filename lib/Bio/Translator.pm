@@ -1,4 +1,4 @@
-package Bio::Tiny::Translator;
+package Bio::Translator;
 
 use strict;
 use warnings;
@@ -7,20 +7,20 @@ use version; our $VERSION = qv('0.6.0');
 
 =head1 NAME
 
-Bio::Tiny::Translator - Translate DNA sequences
+Bio::Translator - Translate DNA sequences
 
 =head1 SYNOPSIS
 
-    use Bio::Tiny::Translator;
+    use Bio::Translator;
 
-    my $translator = new Bio::Tiny::Translator();
-    my $translator = new Bio::Tiny::Translator(11);
-    my $translator = new Bio::Tiny::Translator( 12, 'id' );
-    my $translator = new Bio::Tiny::Translator( 'Yeast Mitochondrial', 'name' );
-    my $translator = new Bio::Tiny::Translator( 'mito', 'name' );
+    my $translator = new Bio::Translator();
+    my $translator = new Bio::Translator(11);
+    my $translator = new Bio::Translator( 12, 'id' );
+    my $translator = new Bio::Translator( 'Yeast Mitochondrial', 'name' );
+    my $translator = new Bio::Translator( 'mito', 'name' );
 
-    my $translator = custom Bio::Tiny::Translator( \$custom_table );
-    my $translator = custom Bio::Tiny::Translator( \$custom_table, 1 );
+    my $translator = custom Bio::Translator( \$custom_table );
+    my $translator = custom Bio::Translator( \$custom_table, 1 );
 
     $translator->translate( \$seq );
     $translator->translate( \$seq, { strand => 1 } );
@@ -28,14 +28,14 @@ Bio::Tiny::Translator - Translate DNA sequences
 
 =head1 DESCRIPTION
 
-C<Bio::Tiny::Translator> tries to be a robust translator object featuring
+C<Bio::Translator> tries to be a robust translator object featuring
 translation tables based off the the ones provided by
 L<NCBI|http://www.ncbi.nlm.nih.gov/Taxonomy/Utils/wprintgc.cgi>.
 Key features include the ability to handle degenerate nucleotides and to
 translate to ambiguous amino acids.
 
 First, create a new translator object using one of the included tables or a
-custom one (see C<Bio::Tiny::Translator::Table> for table formats), and then
+custom one (see C<Bio::Translator::Table> for table formats), and then
 passing your DNA sequences to your translator object.
 
 The translator uses interbase coordinates. See below for the difference between
@@ -63,10 +63,10 @@ __PACKAGE__->mk_accessors('table');
 use Carp;
 use Params::Validate;
 
-use Bio::Tiny::Translator::Table;
-use Bio::Tiny::Translator::Validations ':validations';
+use Bio::Translator::Table;
+use Bio::Translator::Validations ':validations';
 
-use Bio::Tiny::Util::DNA qw/ $all_nucleotide_match /;
+use Bio::Util::DNA qw/ $all_nucleotide_match /;
 
 =head1 CONSTRUCTORS
 
@@ -76,18 +76,18 @@ sub _new { shift->SUPER::new( { table => shift } ) }
 
 =head2 new
 
-    my $translator = new Bio::Tiny::Translator();
-    my $translator = new Bio::Tiny::Translator( $id );
-    my $translator = new Bio::Tiny::Translator( $id, \%params );
+    my $translator = new Bio::Translator();
+    my $translator = new Bio::Translator( $id );
+    my $translator = new Bio::Translator( $id, \%params );
 
 Create a translator with a translation table provided by $id. Please see
-Bio::Tiny::Translator::Table for the full list of options.
+Bio::Translator::Table for the full list of options.
 
 =cut
 
 sub new {
     my $class = shift;
-    my $table = Bio::Tiny::Translator::Table->new(@_) or return;
+    my $table = Bio::Translator::Table->new(@_) or return;
     $class->_new($table);
 }
 
@@ -97,13 +97,13 @@ sub new {
     my $translator = $translator->custom( $table_ref, \%params );
 
 Create a translator with a custom translation table. Please see
-Bio::Tiny::Translator::Table for the full list of options.
+Bio::Translator::Table for the full list of options.
 
 =cut
 
 sub custom {
     my $class = shift;
-    my $table = Bio::Tiny::Translator::Table->custom(@_) or return;
+    my $table = Bio::Translator::Table->custom(@_) or return;
     $class->_new($table);
 }
 
@@ -358,8 +358,8 @@ Kevin Galinsky, C<kgalinsky plus cpan at gmail dot com>
 =head1 BUGS
 
 Please report any bugs or feature requests to
-C<bug-bio-tiny-translator at rt.cpan.org>, or through the web interface at
-L<http://rt.cpan.org/NoAuth/ReportBug.html?Queue=Bio-Tiny-Translator>.
+C<bug-bio-translator at rt.cpan.org>, or through the web interface at
+L<http://rt.cpan.org/NoAuth/ReportBug.html?Queue=Bio-Translator>.
 I will be notified, and then you'll automatically be notified of progress on
 your bug as I make changes.
 
@@ -367,7 +367,7 @@ your bug as I make changes.
 
 You can find documentation for this module with the perldoc command.
 
-    perldoc Bio::Tiny::Translator
+    perldoc Bio::Translator
 
 You can also look for information at:
 
@@ -375,19 +375,19 @@ You can also look for information at:
 
 =item * AnnoCPAN: Annotated CPAN documentation
 
-L<http://annocpan.org/dist/Bio-Tiny-Translator>
+L<http://annocpan.org/dist/Bio-Translator>
 
 =item * CPAN Ratings
 
-L<http://cpanratings.perl.org/d/Bio-Tiny-Translator>
+L<http://cpanratings.perl.org/d/Bio-Translator>
 
 =item * RT: CPAN's request tracker
 
-L<http://rt.cpan.org/NoAuth/Bugs.html?Dist=Bio-Tiny-Translator>
+L<http://rt.cpan.org/NoAuth/Bugs.html?Dist=Bio-Translator>
 
 =item * Search CPAN
 
-L<http://search.cpan.org/dist/Bio-Tiny-Translator>
+L<http://search.cpan.org/dist/Bio-Translator>
 
 =back
 

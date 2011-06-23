@@ -1,24 +1,24 @@
-package Bio::Tiny::Translator::Table;
+package Bio::Translator::Table;
 
 use strict;
 use warnings;
 
 =head1 NAME
 
-Bio::Tiny::Translator::Table - translation table
+Bio::Translator::Table - translation table
 
 =head1 SYNOPSIS
 
-    use Bio::Tiny::Translator::Table;
+    use Bio::Translator::Table;
     
-    my $table = new Bio::Tiny::Translator();
-    my $table = new Bio::Tiny::Translator(11);
-    my $table = new Bio::Tiny::Translator( 12, { type => 'id' } );
-    my $table = new Bio::Tiny::Translator( 'Yeast Mitochondrial', { type => 'name' } );
-    my $table = new Bio::Tiny::Translator( 'mito', { type => 'name' } );
+    my $table = new Bio::Translator();
+    my $table = new Bio::Translator(11);
+    my $table = new Bio::Translator( 12, { type => 'id' } );
+    my $table = new Bio::Translator( 'Yeast Mitochondrial', { type => 'name' } );
+    my $table = new Bio::Translator( 'mito', { type => 'name' } );
 
-    my $table = custom Bio::Tiny::Translator( \$custom_table );
-    my $tale = custom Bio::Tiny::Translator( \$custom_table, { bootstrap => 0 } );
+    my $table = custom Bio::Translator( \$custom_table );
+    my $tale = custom Bio::Translator( \$custom_table, { bootstrap => 0 } );
 
 
 =cut
@@ -29,7 +29,7 @@ __PACKAGE__->mk_accessors(qw(id names codon2aa codon2start aa2codons));
 use Params::Validate;
 use Carp;
 
-use Bio::Tiny::Util::DNA qw(
+use Bio::Util::DNA qw(
   %degenerate2nucleotides
   %nucleotides2degenerate
   %degenerate_hierarchy
@@ -45,7 +45,7 @@ use Bio::Tiny::Util::DNA qw(
   reverse_complement
 );
 
-use Bio::Tiny::Util::AA qw(
+use Bio::Util::AA qw(
   %ambiguous_forward
   %ambiguous_map
   $aa_match
@@ -64,18 +64,18 @@ sub _new {
     shift->SUPER::new(
         {
             names       => [],
-            codon2aa    => Bio::Tiny::Translator::Table::Pair->new(),
-            codon2start => Bio::Tiny::Translator::Table::Pair->new(),
-            aa2codons   => Bio::Tiny::Translator::Table::Pair->new()
+            codon2aa    => Bio::Translator::Table::Pair->new(),
+            codon2start => Bio::Translator::Table::Pair->new(),
+            aa2codons   => Bio::Translator::Table::Pair->new()
         }
     );
 }
 
 =head2 new
 
-    my $table = Bio::Tiny::Translator::Table->new();
-    my $table = Bio::Tiny::Translator::Table->new( $id );
-    my $table = Bio::Tiny::Translator::Table->new( $id, \%params );
+    my $table = Bio::Translator::Table->new();
+    my $table = Bio::Translator::Table->new( $id );
+    my $table = Bio::Translator::Table->new( $id, \%params );
 
 This method creates a translation table by loading a table string from the
 internal list. Pass an ID and the type of ID. By default, it will load the
@@ -107,18 +107,18 @@ strings.
 By default, the "Standard" translation table will be loaded. You may instantiate
 this translation table by calling any of the following:
 
-    my $t = Bio::Tiny::Translator::Table->new();
-    my $t = Bio::Tiny::Translator::Table->new(1);
-    my $t = Bio::Tiny::Translator::Table->new( 1,          { type => 'id' } );
-    my $t = Bio::Tiny::Translator::Table->new( 'Standard', { type => 'name' } );
-    my $t = Bio::Tiny::Translator::Table->new( 'SGC0',     { type => 'name' } );
-    my $t = Bio::Tiny::Translator::Table->new( 'standard', { type => 'name' } );
-    my $t = Bio::Tiny::Translator::Table->new( 'stan',     { type => 'name' } );
+    my $t = Bio::Translator::Table->new();
+    my $t = Bio::Translator::Table->new(1);
+    my $t = Bio::Translator::Table->new( 1,          { type => 'id' } );
+    my $t = Bio::Translator::Table->new( 'Standard', { type => 'name' } );
+    my $t = Bio::Translator::Table->new( 'SGC0',     { type => 'name' } );
+    my $t = Bio::Translator::Table->new( 'standard', { type => 'name' } );
+    my $t = Bio::Translator::Table->new( 'stan',     { type => 'name' } );
 
 For partial matches, this module will use the first matching translation
 table.
 
-    my $t = Bio::Tiny::Translator::Table->new( 'mitochondrial', { type => 'name' } );
+    my $t = Bio::Translator::Table->new( 'mitochondrial', { type => 'name' } );
 
 This will use translation table with ID 2, "Vertebrate Mitochondrial," because
 that is the first match (even though "Yeast Mitochondrial" would also match).
@@ -178,8 +178,8 @@ sub new {
 
 =head2 custom()
 
-    my $table = Bio::Tiny::Translator::Table->custom( $table_ref );
-    my $table = Bio::Tiny::Translator::Table->custom( $table_ref, \%params );
+    my $table = Bio::Translator::Table->custom( $table_ref );
+    my $table = Bio::Translator::Table->custom( $table_ref, \%params );
 
 Create a translation table based off a passed table reference for custom
 translation tables. Loads degenerate nucleotides if bootstrap isn't set (this
@@ -578,12 +578,12 @@ sub string {
 
 {
 
-    package Bio::Tiny::Translator::Table::Pair;
+    package Bio::Translator::Table::Pair;
 
     use strict;
     use warnings;
 
-    use Bio::Tiny::Util::DNA qw(reverse_complement);
+    use Bio::Util::DNA qw(reverse_complement);
 
     sub new {
         my $class = shift;

@@ -1,10 +1,10 @@
 #!perl
 
 use Test::More 'no_plan';
-use Bio::Tiny::Util::DNA qw(randomDNA);
+use Bio::Util::DNA qw(randomDNA);
 
-use Bio::Tiny::Translator::Utils;
+use Bio::Translator::Utils;
 
-my $utils = new Bio::Tiny::Translator::Utils;
+my $utils = new Bio::Translator::Utils;
 
 ok( $utils->getCDS( randomDNA() ), 'getCDS ran' );

@@ -70,7 +70,7 @@
 ^MANIFEST\.SKIP
 
 # Avoid archives of this distribution
-\bBio-Tiny-Translator-[\d\.\_]+
+\bBio-Translator-[\d\.\_]+
 
 # Avoid tests that aren't useful for end-user
 ^t/kwalitee

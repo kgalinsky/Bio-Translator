@@ -1,10 +1,10 @@
 #!perl
 
 use Test::More 'no_plan';
-use Bio::Tiny::Translator::Utils;
+use Bio::Translator::Utils;
 use List::Compare;
 
-my $utils = new Bio::Tiny::Translator::Utils();
+my $utils = new Bio::Translator::Utils();
 
 eval { $utils->regex() };
 ok( $@, 'regex died with no parameters' );

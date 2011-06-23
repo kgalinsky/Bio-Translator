@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <projectDescription>
-	<name>Bio-Tiny-Translator</name>
+	<name>Bio-Translator</name>
 	<comment></comment>
 	<projects>
-		<project>Bio-Tiny-Util-AA</project>
-		<project>Bio-Tiny-Util-DNA</project>
+		<project>Bio-Util-AA</project>
+		<project>Bio-Util-DNA</project>
 	</projects>
 	<buildSpec>
 		<buildCommand>

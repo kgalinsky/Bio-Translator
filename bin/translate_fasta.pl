@@ -8,11 +8,11 @@
 use strict;
 #use warnings;
 
-use Bio::Tiny::Translator;
+use Bio::Translator;
 use Getopt::Euclid ':vars';
 
 # Instantiate the translator
-my $t = Bio::Tiny::Translator->new($ARGV_translation_table);
+my $t = Bio::Translator->new($ARGV_translation_table);
 
 # Build the list of file handles or standard input
 

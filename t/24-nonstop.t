@@ -3,9 +3,9 @@
 use Test::More 'no_plan';
 use List::Compare::Functional 'get_symdiff';
 
-use Bio::Tiny::Translator::Utils;
+use Bio::Translator::Utils;
 
-my $utils = new Bio::Tiny::Translator::Utils;
+my $utils = new Bio::Translator::Utils;
 
 is(
     scalar(
