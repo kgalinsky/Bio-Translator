@@ -1,85 +1,49 @@
 #!/usr/bin/env perl
 
-# $Author$
-# $Date$
-# $Revision$
-# $HeadURL$
-
 use strict;
-#use warnings;
+use warnings;
 
 use Bio::Translator;
-use Getopt::Euclid ':vars';
+use Bio::Util::DNA 'cleanDNA';
+
+use Getopt::Std;
+our $opt_t = 1;
+getopts('t');
 
 # Instantiate the translator
-my $t = Bio::Translator->new($ARGV_translation_table);
+my $t = Bio::Translator->new($opt_t);
 
 # Build the list of file handles or standard input
 
-my @handles;
-
-foreach my $file (@ARGV_fasta_files) {
-    # For "-" use standard input
-    if ( $file eq '-' ) {
-        push @handles, \*STDIN;
-        next;
-    }
-
-    # Open the file or die
-    open FH, $file
-      or die qq{Can't open file "$file" for reading: $!};
-    push @handles, \*FH;
-}
-
-# Open standard input if no file names provided
-@handles = ( \*STDIN ) unless (@handles);
-
 # Set the input record separator
-local $/ = '>';
+local $/ = "\n>";
 
-foreach my $fh (@handles) {
-    # Throw away the first "record" (i.e. it is just ">")
-    $_ = <$fh>;
+while (<>) {
 
-    while (<$fh>) {
-        chomp;
+    # Extract the sequence and translate it
+    s/>//g;
+    my ( $header, $sequence ) = split /\n/, $_, 2;
+    my $pep_ref = $t->translate( cleanDNA( \$sequence ) );
 
-        next unless ( $_ =~ /\S/ );
-
-        # Extract the sequence and translate it
-        my ( $header, $sequence ) = split /\n/, $_, 2;
-        my $pep_ref = $t->translate( \$sequence );
-        
-        # Format the peptide and print out the record
-        $$pep_ref =~ s/(.{1,60})/$1\n/g;
-        print ">$header\n$$pep_ref";
-    }
-
-    close $fh;
+    # Format the peptide and print out the record
+    $$pep_ref =~ s/(.{1,60})/$1\n/g;
+    print ">$header\n$$pep_ref";
 }
 
-=head1 NAME
+sub HELP_MESSAGE {
+    print STDERR <<ENDL;
+Usage: $0 [OPTION] [FASTA]...
+Example: $0 -t 5 foo.fasta
 
-translate_fasta.pl - translate fasta files
+Options:
+  -t    translation table id to use
+ENDL
+    exit 1;
+}
 
-=head1 OPTIONS
-
-=over
-
-=item <fasta_files>...
-
-Translate list of fasta files. Input "-" for standard input. If no files
-given, translate from standard input.
-
-=item [-]-t[ranslation[_table]] <table_id>
-
-Translation table ID. Default is 1.
-
-=for Euclid:
-    table_id.type:      +int
-    table_id.default:   1
-
-=back
-
-=cut
-
+sub VERSION_MESSAGE {
+    print STDERR <<ENDL;
+$0 version $Bio::Translator::VERSION
+ENDL
+    exit 1;
+}
