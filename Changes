@@ -1,5 +1,11 @@
 Revision history for Bio::Translator
 
+0.6.1   Nov 10 2011
+  - Fixed translate_fasta.pl
+
+0.6.0   Jun 23 2011
+  - Changed interface (again) 
+
 0.5.7   May 10 2011
   - Changed namespace
   - Migrated to git
